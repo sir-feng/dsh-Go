@@ -512,21 +512,6 @@ class RuntimeLogEntry {
   final String stream;
 }
 
-class RuntimeLogsEvent extends RuntimeEvent {
-  const RuntimeLogsEvent(this.entries);
-  final List<RuntimeLogEntry> entries;
-}
-
-class RuntimeLogSnapshot {
-  const RuntimeLogSnapshot(this.entries, this.throughSeq);
-  final List<RuntimeLogEntry> entries;
-  final int throughSeq;
-}
-
-List<RuntimeLogEntry> _logEntries(Object? raw) => [
-  for (final entry in raw as List) RuntimeLogEntry.fromMap(entry as Map<Object?, Object?>),
-];
-
 /// One-off message from the native side, e.g. "已用安全模式启动".
 class RuntimeNoticeEvent extends RuntimeEvent {
   const RuntimeNoticeEvent(this.text);
@@ -540,37 +525,7 @@ class BackgroundSettingsInfo {
   final String? label;
 }
 
-/// What 「重置运行环境」 keeps of the old /root (Kotlin `ResetKeep`); the next
-/// install puts it back.
-class ResetKeep {
-  const ResetKeep({this.uiAndSkills = false, this.pluginsAndSettings = false});
-
-  /// `$DSH_HOME/dsh-go` (ui.json) and the user's skills.
-  final bool uiAndSkills;
-
-  /// Installed plugins with their settings, `cordis.patch.yml` and `.env`.
-  final bool pluginsAndSettings;
-
-  /// The reset dialog's starting choice.
-  static const suggested = ResetKeep(uiAndSkills: true);
-
-  List<String> get wire => [if (uiAndSkills) 'uiAndSkills', if (pluginsAndSettings) 'pluginsAndSettings'];
-
-  ResetKeep copyWith({bool? uiAndSkills, bool? pluginsAndSettings}) => ResetKeep(
-    uiAndSkills: uiAndSkills ?? this.uiAndSkills,
-    pluginsAndSettings: pluginsAndSettings ?? this.pluginsAndSettings,
-  );
-
-  @override
-  bool operator ==(Object other) =>
-      other is ResetKeep && other.uiAndSkills == uiAndSkills && other.pluginsAndSettings == pluginsAndSettings;
-
-  @override
-  int get hashCode => Object.hash(uiAndSkills, pluginsAndSettings);
-
-  @override
-  String toString() => 'ResetKeep(${wire.join(', ')})';
-}
+/// Reset options are gone with the local runtime.
 
 /// Transaction outcome plus whether its native runtime scope is still current.
 class ManagedSkillInstallResponse {
@@ -652,51 +607,11 @@ class RuntimeBridge {
     'visualReplies': visualReplies,
   });
 
-  Future<LastKnownGood> lastKnownGood() async {
-    final map = await _methods.invokeMapMethod<Object?, Object?>('lastKnownGood');
-    return map == null ? const LastKnownGood.none() : LastKnownGood.fromMap(map);
-  }
-
-  /// Puts the main profile's plugin list and settings layer back to the last good run's;
-  /// resolves with what changed. Needs the engine stopped (or in safe mode).
-  Future<LastKnownGood> restoreLastKnownGood() async {
-    final map = await _methods.invokeMapMethod<Object?, Object?>('restoreLastKnownGood');
-    return map == null ? const LastKnownGood.none() : LastKnownGood.fromMap({...map, 'available': true});
-  }
-
   /// HarmonyOS: whether this build may schedule system reminders: `granted`,
   /// `denied` or `unsupported`.
   Future<String?> reminderAccess() => _methods.invokeMethod<String>('reminderAccess');
 
-  Future<List<SafeHazard>> safePreflight() async {
-    final list = await _methods.invokeListMethod<Object?>('safePreflight') ?? const [];
-    return [
-      for (final e in list)
-        if (e is Map) SafeHazard.fromMap(e.cast<Object?, Object?>()),
-    ];
-  }
-
-  /// Renames the given preflight files to `<name>.off-<time>`; returns the new guest paths.
-  Future<List<String>> moveAside(List<String> paths) async {
-    final list = await _methods.invokeListMethod<Object?>('moveAside', {'paths': paths}) ?? const [];
-    return [
-      for (final e in list)
-        if (e is Map && e['to'] is String) e['to'] as String,
-    ];
-  }
-
   Future<void> clearFailure() => _methods.invokeMethod<void>('clearFailure');
-
-  Future<void> setAutoSafe(bool enabled) => _methods.invokeMethod<void>('setAutoSafe', {'enabled': enabled});
-
-  /// Selects the local workspace index for subsequent starts. Native code
-  /// verifies the engine is stopped; this call does not start or stop it.
-  Future<void> setWorkspaceRecovery(bool enabled) =>
-      _methods.invokeMethod<void>('setWorkspaceRecovery', {'enabled': enabled});
-
-  /// Takes effect on the next start; native code rejects changes while active.
-  Future<void> setDirectEngine(bool enabled) => _methods.invokeMethod<void>('setDirectEngine', {'enabled': enabled});
-  Future<void> setTawcEngine(bool enabled) => _methods.invokeMethod<void>('setTawcEngine', {'enabled': enabled});
 
   /// Output around the last failure, tokens masked.
   Future<List<String>> failureLog() async => (await _methods.invokeListMethod<String>('failureLog')) ?? const [];
@@ -816,20 +731,11 @@ class RuntimeBridge {
   /// iOS: whether a local turn is running, which is what asks the system to let it go on.
   Future<void> setTurnRunning(bool running) => _methods.invokeMethod<void>('turnRunning', {'running': running});
 
-  /// Deletes the runtime with everything in /root except [keep].
-  Future<void> reset({ResetKeep keep = const ResetKeep()}) => _methods.invokeMethod<void>('reset', {'keep': keep.wire});
-
-  /// Explicit HarmonyOS reset intent. Existing uninstall calls keep the old wire.
-  Future<void> resetAndReinstall({ResetKeep keep = const ResetKeep()}) =>
-      _methods.invokeMethod<void>('reset', {'keep': keep.wire, 'reinstall': true});
+  /// Deletes the runtime with everything in /root.
+  Future<void> reset() => _methods.invokeMethod<void>('reset');
 
   Future<List<String>> logs({int lines = 500}) async =>
       (await _methods.invokeListMethod<String>('getLogs', {'lines': lines})) ?? const [];
-
-  Future<RuntimeLogSnapshot> logSnapshot({int lines = 300}) async {
-    final raw = await _methods.invokeMapMethod<Object?, Object?>('getLogSnapshot', {'lines': lines});
-    return RuntimeLogSnapshot(_logEntries(raw!['entries']), raw['throughSeq'] as int);
-  }
 
   static RuntimeEvent? _parse(Map<Object?, Object?> raw) {
     switch (raw['type']) {
@@ -842,7 +748,7 @@ class RuntimeBridge {
           total: (raw['total'] as num?)?.toInt() ?? 0,
         );
       case 'logs':
-        return RuntimeLogsEvent(_logEntries(raw['entries']));
+        return null;
       case 'notice':
         final text = raw['text'] as String?;
         return text == null || text.isEmpty ? null : RuntimeNoticeEvent(text);

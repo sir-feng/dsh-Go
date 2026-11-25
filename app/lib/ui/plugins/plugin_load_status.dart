@@ -4,10 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
 import '../../state/engine_settings_state.dart';
-import '../../state/hosts_state.dart';
 import '../../state/plugin_load_status.dart';
 import '../common/list_page_row.dart';
-import '../onboarding/runtime_setup_page.dart' show showRuntimeLogSheet;
 import '../theme/app_icons.dart';
 import 'plugin_widgets.dart' show PluginLogBox;
 
@@ -28,7 +26,6 @@ class PluginLoadStatus extends ConsumerWidget {
     final issues = rows.where((row) => row.hasIssue).toList(growable: false);
     if (issues.isEmpty) return const SizedBox.shrink();
     final l10n = context.l10n;
-    final local = ref.watch(activeHostProvider.select((host) => host.isLocal));
     final running = rows.where((row) => row.status == InventoryStatus.running).length;
     final incomplete = rows.any((row) => row.incomplete);
     final failed = rows.any((row) => row.status == InventoryStatus.failed);
@@ -86,19 +83,10 @@ class PluginLoadStatus extends ConsumerWidget {
             title: l10n.pluginsRefresh,
             onTap: () => ref.invalidate(pluginInventoryProvider),
           ),
-          if (local)
-            ListPageRow(
-              icon: AppIcons.terminal,
-              title: l10n.shellEngineLogs,
-              onTap: () {
-                if (ref.read(activeHostProvider).isLocal) showRuntimeLogSheet(context);
-              },
-            )
-          else
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-              child: Text(l10n.pluginsLoadRemoteLogs, style: Theme.of(context).textTheme.bodySmall),
-            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+            child: Text(l10n.pluginsLoadRemoteLogs, style: Theme.of(context).textTheme.bodySmall),
+          ),
         ],
       ),
     );

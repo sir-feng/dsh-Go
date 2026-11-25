@@ -1,10 +1,9 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:dsh_app/state/android_features.dart';
 import 'package:dsh_app/l10n/l10n.dart';
 import 'package:dsh_app/remote/link_status.dart';
 import 'package:dsh_app/remote/secret_store.dart';
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/ui/remote/network_details_sheet.dart';
@@ -85,9 +84,6 @@ void main() {
           hostLinkProvider.overrideWith((ref, host) => link),
           hostNameProvider.overrideWith((ref, host) => 'Workstation'),
           if (os != null) operatingSystemProvider.overrideWithValue(os),
-          localRuntimeProvider.overrideWith(
-            () => FakeRuntime(const LocalRuntimeState(loaded: true, status: runningStatus)),
-          ),
         ],
       ),
     );
@@ -108,6 +104,7 @@ void main() {
     await pump(tester, _InspectableLink(HostLinkStatus.idle), page: true);
     final compact = find.byKey(const ValueKey('remote-compact-history'));
     await tester.scrollUntilVisible(compact, 300);
+    await tester.pump();
     expect(SettingsIndex.spot('remote-compact-history'), isNotNull);
     expect(tester.widget<SettingsSwitchTile>(compact).value, isFalse);
     expect(find.textContaining('切换主机或重启 App 后生效'), findsOneWidget);

@@ -10,15 +10,7 @@ import '../remote/network_watch.dart';
 import '../remote/relay/relay_backend.dart';
 import '../remote/ssh/ssh_link.dart';
 import '../remote/ssh/ssh_transport.dart';
-import '../runtime/runtime_bridge.dart';
-import '../runtime/container_paths.dart';
-import 'workspaces_state.dart';
-import '../runtime/runtime_state.dart';
 import 'hosts_state.dart';
-import 'permission_default_repair.dart';
-import 'provider_backend.dart';
-import 'provider_keys.dart';
-import 'settings_state.dart';
 
 /// A connected DSH host: the on-device engine, an SSH host or a relay device.
 class HostConnection {
@@ -52,107 +44,20 @@ class HostConnection {
   final String? workingDirectory;
 }
 
-typedef LocalClientConnector = Future<DshClient> Function({required Uri baseUri, required String token});
-
-/// [DshClient.connect]; tests swap it to decide when a connect finishes.
-final localClientConnectorProvider = Provider<LocalClientConnector>(
-  (ref) =>
-      ({required baseUri, required token}) =>
-          DshClient.connect(baseUri: baseUri, token: token, backgroundLists: true, startMux: false),
-);
-
-/// Connects to the local `dsh web` once the native runtime reports it running.
+/// The connection the desktop-pet / voice / notification paths read: the
+/// active host's remote connection. The local engine (and its loopback) is
+/// gone from this build, so `HostKind.local` has nothing to connect to and
+/// yields null; remote hosts go through the same link the chat uses.
 class LocalConnectionController extends AsyncNotifier<HostConnection?> {
   @override
   Future<HostConnection?> build() async {
-    // This build's ref: `ref` always points at the newest build, so only
-    // `r.mounted` tells that a token change superseded this one.
-    final r = ref;
-    // Riverpod's own retries give up after a while; resume and network
-    // changes try a failed connect again.
-    final kicks = r.read(networkKicksProvider).listen((_) {
-      if (r.mounted && state.hasError && !state.isLoading) r.invalidateSelf();
-    });
-    r.onDispose(() => unawaited(kicks.cancel()));
-    final endpoint = r.watch(
-      localRuntimeProvider.select((s) {
-        final st = s.status;
-        return st.phase == RuntimePhase.running ? (st.baseUrl, st.token) : (null, null);
-      }),
-    );
-    final (baseUrl, token) = endpoint;
-    if (baseUrl == null || token == null) return null;
-
-    if (ContainerPaths.enabled) {
-      final paths = await ContainerPaths.refresh();
-      if (!r.mounted) return null;
-      if (r.read(activeHostProvider).isLocal) {
-        await r.read(workspacePrefsProvider.notifier).relocate(paths);
-      }
-      if (!r.mounted) return null;
-    }
-
-    final client = await r.read(localClientConnectorProvider)(baseUri: Uri.parse(baseUrl), token: token);
-    if (!r.mounted) {
-      await client.close();
-      return null;
-    }
-    r.onDispose(() => unawaited(client.close()));
-    (Object, StackTrace)? readyFailure;
-    final ready = client.mux.ready(timeout: const Duration(seconds: 20));
-    unawaited(
-      ready.then<void>(
-        (_) {},
-        onError: (Object error, StackTrace stack) {
-          readyFailure = (error, stack);
-          // Error/retry states retain their previous value. Retire our published
-          // connection before closing it, without changing an unpublished build.
-          if (r.mounted && identical(state.value?.client, client)) {
-            state = const AsyncData(null);
-          }
-          unawaited(client.close());
-        },
-      ),
-    );
-
-    // Keep DSH's own credential store in sync with the key saved in the app.
-    r.listen(settingsProvider.select((s) => s.apiKey), (prev, next) {
-      if (next == prev) return;
-      if (next.isNotEmpty) {
-        unawaited(_pushKey(client, next));
-      } else if (prev != null && prev.isNotEmpty) {
-        unawaited(client.clearProviderKey().catchError((_) {}));
-      }
-    });
-    final apiKey = r.read(settingsProvider).apiKey;
-    if (apiKey.isNotEmpty) await _pushKey(client, apiKey);
-    if (!r.mounted) return null;
-    if (readyFailure case final failure?) Error.throwWithStackTrace(failure.$1, failure.$2);
-    final connection = HostConnection(client: client, isLocal: true);
-    // HTTP is usable now; keep build pending so ready failures retain Riverpod's retry policy.
-    state = AsyncData(connection);
-    await ready;
-    if (!r.mounted) return null;
-    // Custom providers' keys kept on the phone go back in where the engine
-    // lost them; never awaited (the catalog refreshes when they land).
-    unawaited(
-      healProviderKeys(
-        ClientProviderBackend(client, isLocal: true, hostLabel: appL10n.commonThisPhone),
-        r.read(providerKeyVaultProvider),
-      ).catchError((_) => const <String>[]),
-    );
-    // An Auto default an older app saved keeps DSH's permission presets from
-    // starting; it comes out once, with a restart.
-    unawaited(clearAutoDefaultPreset(r.container));
-
-    return connection;
-  }
-
-  Future<void> _pushKey(DshClient client, String key) async {
-    try {
-      await client.setProviderKey(key);
-    } catch (_) {
-      // Rejected when the launch environment already provides the key; harmless.
+    final host = ref.watch(activeHostProvider);
+    switch (host.kind) {
+      case HostKind.local:
+        return null;
+      case HostKind.ssh:
+      case HostKind.relay:
+        return ref.watch(remoteConnectionProvider(host)).value;
     }
   }
 }
@@ -206,6 +111,7 @@ final hostLinkProvider = Provider.autoDispose.family<HostLink?, HostRef>((ref, h
       ref.listen(hostsProvider.select((s) => s.sshById(host.id)), (_, next) {
         if (next != null && next.connectionKey == link.config.connectionKey) link.updateConfig(next);
       });
+      _observeRemoteLink(ref, link, host.kind);
       ref.onDispose(() => unawaited(link.close()));
       return link;
     case HostKind.relay:
@@ -224,6 +130,7 @@ final hostLinkProvider = Provider.autoDispose.family<HostLink?, HostRef>((ref, h
         },
         kicks: ref.read(networkKicksProvider),
       );
+      _observeRemoteLink(ref, link, host.kind);
       final statuses = link.statuses.listen((status) {
         if (status.phase == HostLinkPhase.failed && status.error?.kind == HostLinkErrorKind.notLoggedIn) {
           unawaited(ref.read(relayAccountProvider.notifier).recheck());
@@ -236,6 +143,24 @@ final hostLinkProvider = Provider.autoDispose.family<HostLink?, HostRef>((ref, h
       return link;
   }
 });
+
+// One connection episode includes its backoff and retries. A successful
+// application handshake closes it; native reconnects start a new episode.
+void _observeRemoteLink(Ref ref, HostLink link, HostKind kind) {
+  final sub = link.statuses.listen((status) {
+    switch (status.phase) {
+      case HostLinkPhase.connecting:
+      case HostLinkPhase.reconnecting:
+      case HostLinkPhase.connected:
+      case HostLinkPhase.failed:
+      case HostLinkPhase.idle:
+        break;
+    }
+  });
+  ref.onDispose(() {
+    unawaited(sub.cancel());
+  });
+}
 
 /// Status of a host's link for the UI (idle for 本机).
 final hostLinkStatusProvider = StreamProvider.autoDispose.family<HostLinkStatus, HostRef>((ref, host) async* {

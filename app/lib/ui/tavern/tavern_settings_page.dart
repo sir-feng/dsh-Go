@@ -1,5 +1,5 @@
-// 酒馆设置 (docs/design/roleplay-ui.md §1; grouped as the optimization doc's
-// §3.4 has it): 模型与连接, 生成, 显示, 安全, 数据, 你.
+// 酒馆设置 (docs/design/roleplay-ui.md §1): 模型与连接, 生成, 工具, 显示,
+// 安全, 数据, 你.
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -37,7 +37,6 @@ import 'tavern_preset_page.dart';
 import 'tavern_presets_page.dart';
 import 'tavern_quick_replies_page.dart';
 import 'tavern_reading.dart';
-import 'tavern_usage_page.dart';
 import 'tavern_tool_policy_group.dart';
 
 class TavernSettingsPage extends ConsumerWidget {
@@ -403,13 +402,6 @@ List<Widget> tavernSettingsGroups(BuildContext context, WidgetRef ref) {
         title: l10n.tavernRestore,
         subtitle: l10n.tavernRestoreSubtitle,
         onTap: () => unawaited(restoreTavern(context, ref)),
-      ),
-      SettingsTile(
-        key: const ValueKey('tavern-usage-stats'),
-        icon: AppIcons.chart,
-        title: l10n.tavernUsageStats,
-        subtitle: l10n.tavernUsageStatsSubtitle,
-        onTap: () => unawaited(Navigator.of(context).push(TavernUsagePage.route())),
       ),
       SettingsTile(
         key: const ValueKey('tavern-storage'),

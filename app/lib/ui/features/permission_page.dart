@@ -11,22 +11,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
-import '../../runtime/runtime_state.dart';
-import '../../state/android_features.dart';
 import '../../state/connection_state.dart';
 import '../../state/engine_settings_state.dart' show describeSettingsError;
 import '../../state/features_state.dart';
 import '../../state/settings_state.dart';
-import '../../state/system_actions_state.dart';
-import '../../runtime/runtime_bridge.dart';
-import '../../state/engine_control.dart';
 import '../../state/hosts_state.dart';
-import '../../state/phone_state.dart';
 import '../common/ask_ai.dart';
 import '../common/list_page_row.dart';
 import '../common/risk_notice.dart';
-import '../phone/phone_control_screen.dart' show PhoneConfirmModeText;
-import '../settings/index/settings_pages.dart' show openSpot;
 import '../settings/index/spots.dart';
 import '../shell/page_frame.dart';
 import '../theme/app_icons.dart';
@@ -39,8 +31,7 @@ import 'feature_widgets.dart';
 /// access is the app's 「自动执行命令」 switch; any other default turns it
 /// off. Null when it worked, else the toast to show.
 Future<String?> writePermissionDefault(WidgetRef ref, DshClient client, String value, int revision) async {
-  final localNormal =
-      ref.read(activeConnectionProvider).value?.isLocal == true && !ref.read(localRuntimeProvider).status.inSafeMode;
+  final localNormal = ref.read(activeConnectionProvider).value?.isLocal == true;
   final settings = ref.read(settingsProvider.notifier);
   try {
     if (localNormal && value == 'danger-full-access') {
@@ -118,33 +109,6 @@ class _PermissionPageState extends ConsumerState<PermissionPage> {
     }
   }
 
-  /// 访问手机文件: what AI may touch first, then the system's own grant; the
-  /// engine restarts so its mounts follow.
-  Future<void> _onPhoneFiles(bool next) async {
-    final l10n = context.l10n;
-    final notifier = ref.read(settingsProvider.notifier);
-    if (next) {
-      final ok = await confirmRisk(context, RiskNotices.phoneFiles);
-      if (!ok || !mounted) return;
-      final bridge = ref.read(runtimeBridgeProvider);
-      var access = await bridge.requestStorage();
-      if (!access.granted && access.permission && !access.legacy) {
-        // Device ignores legacy storage: fall back to the "All files access" page.
-        await bridge.openAllFilesAccess();
-        access = await bridge.storageStatus();
-      }
-      if (!access.granted) {
-        if (mounted) _toast(l10n.hubSettingsStorageDenied);
-        return;
-      }
-    }
-    await notifier.setPhoneStorage(next);
-    // Binds are fixed at launch: restart a running engine so the change applies.
-    if (ref.read(localRuntimeProvider).status.phase == RuntimePhase.running && mounted) {
-      unawaited(EngineControl.restart(ProviderScope.containerOf(context, listen: false)));
-    }
-  }
-
   Future<void> _resetDefault(int revision) async {
     final client = ref.read(activeConnectionProvider).value?.client;
     if (client == null || _busy) return;
@@ -172,7 +136,7 @@ class _PermissionPageState extends ConsumerState<PermissionPage> {
     final autoApprove = ref.watch(settingsProvider.select((s) => s.autoApproveCommands));
     final isLocal = ref.watch(activeConnectionProvider).value?.isLocal ?? true;
     // 「自动执行命令」 opens every new conversation on the phone with full access.
-    final forced = isLocal && autoApprove && !ref.watch(localRuntimeProvider.select((s) => s.status.inSafeMode));
+    final forced = isLocal && autoApprove;
 
     List<Widget> options(List<PermissionOption> choices, String? selected, ValueChanged<String>? onPick) => [
       for (final o in choices)
@@ -183,31 +147,6 @@ class _PermissionPageState extends ConsumerState<PermissionPage> {
           onTap: _busy || onPick == null ? null : () => onPick(o.value),
         ),
     ];
-
-    final phoneFiles = ref.watch(settingsProvider.select((s) => s.phoneStorage));
-    final android = ref.watch(androidSystemFeaturesProvider);
-    final confirm = android ? ref.watch(phoneProvider.select((s) => s.policies?.confirmMode)) : null;
-    final phone = ListPageCard(
-      title: l10n.hubPermissionPhone,
-      children: [
-        // The phone's storage is this phone's engine's to mount.
-        if (ref.watch(activeHostProvider).isLocal)
-          MergeSemantics(
-            child: ListPageRow(
-              spot: Spots.phoneFiles,
-              subtitle: l10n.hubSettingsPhoneFilesHint,
-              onTap: () => unawaited(_onPhoneFiles(!phoneFiles)),
-              trailing: Switch.adaptive(value: phoneFiles, onChanged: (v) => unawaited(_onPhoneFiles(v))),
-            ),
-          ),
-        // The control itself stays on 手机操控: this opens it at that row.
-        ListPageRow(
-          spot: Spots.permissionPhoneConfirm,
-          value: confirm?.label,
-          onTap: () => unawaited(openSpot(context, Spots.phoneConfirm)),
-        ),
-      ],
-    );
 
     return AppPage.list(
       title: l10n.featuresPermissions,
@@ -254,11 +193,6 @@ class _PermissionPageState extends ConsumerState<PermissionPage> {
               ),
             ),
         ],
-        if (android) ...[
-          const SizedBox(height: 24),
-          phone,
-        ] else if (ref.watch(systemActionsProvider.select((s) => s.enabled)))
-          FeatureNote(l10n.systemActionsPermissionNote),
       ],
     );
   }

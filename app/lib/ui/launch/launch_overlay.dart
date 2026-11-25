@@ -11,14 +11,11 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../launch/custom_launch.dart';
 import '../../launch/launch_media.dart';
 import '../../launch/launch_motion.dart';
 import '../../launch/launch_state.dart';
-import '../../runtime/runtime_bridge.dart';
-import '../../runtime/runtime_state.dart';
 import '../../state/app_info.dart';
 import '../theme/theme.dart';
 
@@ -37,7 +34,7 @@ class LaunchLayer extends StatelessWidget {
     builder: (context, controller, _) {
       if (controller == null) return const SizedBox.shrink();
       final overlay = LaunchOverlay(key: ObjectKey(controller), controller: controller);
-      return controller.snapshot.coldEngine ? _EngineWatch(controller: controller, child: overlay) : overlay;
+      return overlay;
     },
   );
 }
@@ -87,24 +84,6 @@ class _LaunchUnderState extends State<LaunchUnder> {
   Widget build(BuildContext context) {
     final phase = _controller?.phase;
     return Offstage(offstage: phase == LaunchPhase.cover || phase == LaunchPhase.playing, child: widget.child);
-  }
-}
-
-/// Passes "this phone's engine is running" to a cold start's [controller].
-class _EngineWatch extends ConsumerWidget {
-  const _EngineWatch({required this.controller, required this.child});
-
-  final LaunchController controller;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final running = ref.watch(localRuntimeProvider.select((s) => s.status.phase == RuntimePhase.running));
-    if (running) {
-      // Not during a build: the overlay rebuilds on what this changes.
-      SchedulerBinding.instance.addPostFrameCallback((_) => controller.engineReady());
-    }
-    return child;
   }
 }
 

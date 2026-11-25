@@ -7,7 +7,6 @@ import 'dart:convert';
 import 'package:dsh_app/l10n/l10n.dart';
 import 'package:dsh_app/remote/relay/dsh_remote_backend.dart';
 import 'package:dsh_app/remote/secret_store.dart' as app_secrets;
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/ui/remote/relay_login_sheet.dart';
@@ -22,8 +21,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../packages/dsh_remote/test/support/fake_remote.dart';
-import '../shell/golden_harness.dart' show FakeRuntime, runningStatus, usePhoneSurface;
-
+import '../shell/golden_harness.dart';
 const _guard = Duration(seconds: 8);
 const _operation = #logoutOwnerOperation;
 
@@ -178,9 +176,6 @@ class _Fixture {
           relayBackendProvider.overrideWithValue(backend),
           localConnectionProvider.overrideWith(_NoLocal.new),
           networkKicksProvider.overrideWithValue(const Stream<void>.empty()),
-          localRuntimeProvider.overrideWith(
-            () => FakeRuntime(const LocalRuntimeState(loaded: true, status: runningStatus)),
-          ),
         ],
       );
       await _state(container, relayServerProvider, (origin) => origin == server.url.origin);
@@ -274,6 +269,12 @@ Future<void> _withScreen(WidgetTester tester, Future<void> Function(_Fixture fix
       ),
     );
     await _frames(tester);
+    // The page re-reads the account's hosts when it opens: let that request
+    // finish before the test talks to the server (its reply lands on a pump).
+    for (var i = 0; i < 100 && (fixture.container.read(relayAccountProvider).value?.refreshing ?? false); i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+      await tester.pump();
+    }
     await body(fixture);
   } finally {
     try {

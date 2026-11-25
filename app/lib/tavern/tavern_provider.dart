@@ -18,7 +18,20 @@ import 'tavern_settings.dart';
 final tavernProvider = Provider<Tavern>((ref) {
   final tavern = DeferredTavern(() async {
     final support = await getApplicationSupportDirectory();
-    return openTavern('${support.path}/tavern');
+    return TavernEngine.open(
+      support,
+      modelClient: TavernModelClient(
+        onUsageSettled: (report, {required partial}) {
+          if (!ref.mounted) return;
+          final fields = report?.fields;
+          Object? read(String key) => switch (fields?[key]) {
+            {'state': 'invalid'} => -1,
+            {'state': 'reported', 'value': final int value} => value,
+            _ => null,
+          };
+        },
+      ),
+    );
   }());
   ref.onDispose(tavern.close);
   final keys = ref.read(tavernChannelKeysProvider);

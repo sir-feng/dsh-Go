@@ -8,7 +8,6 @@ import 'dart:convert';
 import 'package:dsh_app/l10n/l10n.dart';
 import 'package:dsh_app/remote/relay/dsh_remote_backend.dart';
 import 'package:dsh_app/remote/secret_store.dart' as app_secrets;
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/ui/remote/relay_login_sheet.dart';
@@ -25,8 +24,7 @@ import 'package:shared_preferences_platform_interface/shared_preferences_platfor
 
 import 'real_io_driver.dart';
 import '../../../packages/dsh_remote/test/support/fake_remote.dart';
-import '../shell/golden_harness.dart'
-    show FakeRuntime, runningStatus, usePhoneSurface;
+import '../shell/golden_harness.dart' show usePhoneSurface;
 
 const _guard = Duration(seconds: 8);
 
@@ -254,11 +252,6 @@ class _Fixture {
           relayServerProvider.overrideWith(_ObservedServer.new),
           localConnectionProvider.overrideWith(_NoLocal.new),
           networkKicksProvider.overrideWithValue(const Stream<void>.empty()),
-          localRuntimeProvider.overrideWith(
-            () => FakeRuntime(
-              const LocalRuntimeState(loaded: true, status: runningStatus),
-            ),
-          ),
         ],
       );
       await _state(

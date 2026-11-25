@@ -4131,7 +4131,7 @@ class L10nEn extends L10n {
   String get chatTranscribingEllipsis => 'Transcribing…';
 
   @override
-  String get chatConnectToSend => 'Connect to the engine to send';
+  String get chatConnectToSend => 'Connect to the remote host to send';
 
   @override
   String get chatGeneratingSteerHint => 'Generating · Type to steer';
@@ -5204,7 +5204,7 @@ class L10nEn extends L10n {
   String get commonFailedTryAgain => 'Something went wrong. Try again.';
 
   @override
-  String get commonEngineUnreachable => 'Can’t reach the engine';
+  String get commonEngineUnreachable => 'Can’t reach the remote host';
 
   @override
   String get commonStorageFull => 'Not enough storage';
@@ -7202,10 +7202,10 @@ class L10nEn extends L10n {
   String get engineProvidersTitle => 'Models';
 
   @override
-  String get engineProvidersNotConnected => 'Not connected to the engine';
+  String get engineProvidersNotConnected => 'Not connected to the remote host';
 
   @override
-  String get engineProvidersStartEngine => 'Start the engine to add providers';
+  String get engineProvidersStartEngine => 'Connect to the remote host to add providers';
 
   @override
   String get engineProvidersUnsupported => 'This host doesn’t support custom providers';
@@ -10662,6 +10662,26 @@ class L10nEn extends L10n {
   @override
   String get liveBlockedText =>
       'Turn on live activities for DSH Go in system settings (some phones call it “Show on Live Alerts”)';
+
+  @override
+  String get liveStop => 'Stop';
+
+  @override
+  String get liveStale => 'Not updating · open the app';
+
+  @override
+  String get liveIosSubtitle =>
+      'While DSH works or waits on you: your pet, progress and time in the Dynamic Island and on the lock screen';
+
+  @override
+  String get liveIosFooter =>
+      'Needs iOS 16.2 or later. iPhones with a Dynamic Island show it there; other devices only on the lock screen. The lock screen never shows the conversation\'s title. From iOS 17 you can stop the turn right from the card. Once iOS suspends the app, the card says it has stopped updating.';
+
+  @override
+  String get liveIosUnsupported => 'Needs iOS 16.2 or later';
+
+  @override
+  String get liveIosBlockedText => 'Turn on Live Activities in Settings → DSH Go';
 
   @override
   String get localeTitle => 'Language';
@@ -16136,7 +16156,7 @@ class L10nEn extends L10n {
   String get remoteDshAttached => 'Connected to existing DSH';
 
   @override
-  String get remoteStartupSection => 'On launch';
+  String get remoteConnectionSettings => 'Connection settings';
 
   @override
   String get remoteAutoConnectOnStartup => 'Connect to the last host';
@@ -16976,9 +16996,6 @@ class L10nEn extends L10n {
   String get remoteSshDirect => 'No third-party server';
 
   @override
-  String get remoteOtherMethods => 'Other methods';
-
-  @override
   String get remoteWebConsole => 'Web remote console';
 
   @override
@@ -17036,6 +17053,11 @@ class L10nEn extends L10n {
 
   @override
   String get remoteSwitchWarning => 'Connects to one host at a time. Switching disconnects the previous host.';
+
+  @override
+  String remoteHostOfflineHint(String name) {
+    return '“$name” is offline. Open DSH on that computer and try again.';
+  }
 
   @override
   String get remoteRefreshHosts => 'Refresh hosts';
@@ -17707,9 +17729,6 @@ class L10nEn extends L10n {
   String get remoteNetworkIceProtocol => 'ICE protocol';
 
   @override
-  String get remoteTransferSettings => 'Remote transfer';
-
-  @override
   String get remoteCompactHistory => 'Compact history';
 
   @override
@@ -17927,13 +17946,13 @@ class L10nEn extends L10n {
   String get stateRemoteUploadTooLarge => 'The file exceeds the remote upload protocol\'s size limit';
 
   @override
-  String get remoteWebOpen => 'Open DSH Web';
-
-  @override
   String get remoteWebTitle => 'DSH Web';
 
   @override
   String get remoteWebOpening => 'Opening DSH Web…';
+
+  @override
+  String get remoteWebFailed => 'Couldn’t open DSH Web';
 
   @override
   String get remoteWebRefresh => 'Refresh home page';
@@ -17956,10 +17975,10 @@ class L10nEn extends L10n {
       'The web address could not be verified. Opening was stopped. Check the Host configuration.';
 
   @override
-  String get remoteWebExchangeRejected => 'Access verification failed. Go back and reopen.';
+  String get remoteWebExchangeRejected => 'Access verification failed. Try again.';
 
   @override
-  String get remoteWebSessionExpired => 'The web connection expired. Go back and reopen.';
+  String get remoteWebSessionExpired => 'The web connection expired. Try again.';
 
   @override
   String get remoteWebPlatformUnavailable =>
@@ -18841,7 +18860,7 @@ class L10nEn extends L10n {
   String get shellConnectDeepSeek => 'Connect DeepSeek';
 
   @override
-  String get shellConnectDeepSeekMessage => 'Sign in to DeepSeek to start. No API key needed.';
+  String get shellConnectDeepSeekMessage => 'Enter an API key to start.';
 
   @override
   String get shellAccountSignInUnsupported => 'This engine doesn’t support account sign-in';
@@ -20141,6 +20160,34 @@ class L10nEn extends L10n {
   String get starPromptPlea => 'Pretty please~ It really matters!!';
 
   @override
+  String get starPromptBody2 =>
+      'Looks like you like it here! A Star takes a few seconds, helps more people find DSH Go, and keeps this little whale going!';
+
+  @override
+  String get starPromptPlea2 => 'Just one star from you~';
+
+  @override
+  String get starPromptBody3 =>
+      'DSH Go is free, with no ads — Stars are how more people get to see it. If it’s helped you, would you give this little whale a star?';
+
+  @override
+  String get starPromptPlea3 => 'Waiting here with hopeful eyes~';
+
+  @override
+  String get starPromptBody4 =>
+      'I’ve been here all along. If DSH Go is something you open every day now, a Star is the best thank-you its author could get.';
+
+  @override
+  String get starPromptPlea4 => 'Pretty please, just one tap~';
+
+  @override
+  String get starPromptBody5 =>
+      'This is the last time I’ll ask. Star or not, I’ll keep you company all the same. But if you’d like, a Star would make this little whale very happy!';
+
+  @override
+  String get starPromptPlea5 => 'Last time, pretty please!';
+
+  @override
   String get starPromptStar => 'Star it on GitHub';
 
   @override
@@ -20367,13 +20414,13 @@ class L10nEn extends L10n {
   String get stateEngineStartingRetry => 'The engine is starting. Try again later.';
 
   @override
-  String get stateEngineDisconnectedSignIn => 'Engine disconnected. Sign in again.';
+  String get stateEngineDisconnectedSignIn => 'Remote host disconnected. Sign in again.';
 
   @override
   String get stateUpdateRuntimeOrKey => 'Update the runtime or use an API key';
 
   @override
-  String get stateEngineDisconnected => 'Engine disconnected';
+  String get stateEngineDisconnected => 'Remote host not connected';
 
   @override
   String get stateAgentError => 'Error';
@@ -26004,10 +26051,20 @@ class L10nEn extends L10n {
   String get usageUpgradeNotice => 'New: anonymous usage stats, to help improve DSH Go.\nNo chats or personal info.';
 
   @override
+  String get usageV4Welcome => 'Daily usage and token counts. No chats. Turn off anytime.';
+
+  @override
+  String get usageV4Notice => 'Anonymous stats summarize feature results, model usage and abnormal exits. No chats.';
+
+  @override
   String get usageUpgradeLearn => 'Learn more';
 
   @override
   String get usageUpgradeOff => 'Turn off';
+
+  @override
+  String get usageStatsAndroidFooter =>
+      'This switch controls dsh-go’s own statistics: feature counts (tavern messages, companion room visits and voice calls included), the token counts model replies report, versions, phone maker and model, and system version. It includes no chats, character cards, files or accounts, and does not control Google ML Kit SDK statistics. Android also summarizes foreground days, the first day of collection, startup and remote connection results and timing bands, model usage, plugin actions, setup, and abnormal exits confirmed by the operating system. Turning it off clears unsent data.';
 
   @override
   String viewArtifactSaved(String value) {
@@ -26825,10 +26882,10 @@ class L10nEn extends L10n {
   String get viewEmptyStarting => 'Starting engine…';
 
   @override
-  String get viewEmptyConnecting => 'Connecting to engine…';
+  String get viewEmptyConnecting => 'Connecting to the remote host…';
 
   @override
-  String get viewEmptyDisconnected => 'Engine not connected';
+  String get viewEmptyDisconnected => 'Remote host not connected';
 
   @override
   String get viewEmptyReconnect => 'Reconnect';
@@ -26960,7 +27017,7 @@ class L10nEn extends L10n {
   String get viewModelLoadFailed => 'Couldn’t load models';
 
   @override
-  String get viewModelDisconnected => 'Engine not connected';
+  String get viewModelDisconnected => 'Remote host not connected';
 
   @override
   String get viewModelConnectHint => 'Connect to choose a model';

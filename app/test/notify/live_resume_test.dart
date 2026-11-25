@@ -5,8 +5,7 @@ import 'package:dsh_app/state/notify_state.dart';
 import 'package:dsh_app/ui/settings/notification_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../access/support.dart' show awayAndBack;
-import '../chat/support/harness.dart';
+import '../support/app_harness.dart' show awayAndBack, testApp;
 import 'support.dart';
 
 class _Channel extends FakeNotifyChannel {

@@ -23,11 +23,9 @@ import io.github.ccch1mneyyy.dsh_app.launch.LaunchScreen
 import io.github.ccch1mneyyy.dsh_app.launch.LaunchThemeSync
 import io.github.ccch1mneyyy.dsh_app.links.LinksPlugin
 import io.github.ccch1mneyyy.dsh_app.notify.NotifyPlugin
-import io.github.ccch1mneyyy.dsh_app.phone.PhonePlugin
-import io.github.ccch1mneyyy.dsh_app.runtime.LaunchStart
-import io.github.ccch1mneyyy.dsh_app.runtime.RuntimePlugin
 import io.github.ccch1mneyyy.dsh_app.share.SharePlugin
 import io.github.ccch1mneyyy.dsh_app.shortcuts.ShortcutsPlugin
+import io.github.ccch1mneyyy.dsh_app.text.CachedTextActions
 import io.github.ccch1mneyyy.dsh_app.update.UpdatePlugin
 import io.github.ccch1mneyyy.dsh_app.voice.VoicePlugin
 import java.lang.ref.WeakReference
@@ -35,6 +33,9 @@ import java.util.TimeZone
 
 class MainActivity : FlutterActivity() {
     private var appChannel: MethodChannel? = null
+
+    /** The selection toolbar's text actions, asked of the engine once (see [CachedTextActions]). */
+    private var textActions: CachedTextActions? = null
 
     /**
      * One engine per process, outliving this activity: swiping the app away from recents keeps
@@ -45,8 +46,6 @@ class MainActivity : FlutterActivity() {
         val cache = FlutterEngineCache.getInstance()
         cache.get(ENGINE_ID)?.let { return it }
         return FlutterEngine(applicationContext).also { engine ->
-            engine.plugins.add(RuntimePlugin())
-            engine.plugins.add(PhonePlugin())
             engine.plugins.add(NotifyPlugin())
             engine.plugins.add(FilesPlugin())
             engine.plugins.add(LinksPlugin())
@@ -68,7 +67,6 @@ class MainActivity : FlutterActivity() {
             engine.plugins.add(io.github.ccch1mneyyy.dsh_app.launch.LaunchPlugin())
             engine.plugins.add(io.github.ccch1mneyyy.dsh_app.launch.LaunchClipPlugin())
             engine.plugins.add(io.github.ccch1mneyyy.dsh_app.icons.PictureShortcutPlugin())
-            engine.plugins.add(io.github.ccch1mneyyy.dsh_app.usage.UsagePlugin())
             engine.plugins.add(io.github.ccch1mneyyy.dsh_app.companion.CompanionVoicePlugin())
             engine.plugins.add(io.github.ccch1mneyyy.dsh_app.speech.SpeechPlugin())
             engine.plugins.add(io.github.ccch1mneyyy.dsh_app.companion.CompanionWidgetPlugin())
@@ -88,8 +86,6 @@ class MainActivity : FlutterActivity() {
         packageManager.getActivityInfo(ComponentName(this, MainActivity::class.java), PackageManager.GET_META_DATA).metaData
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 「打开 App 时自动启动」: DSH boots while Flutter starts, not after its first frame.
-        LaunchStart.onActivityCreate(this)
         // 启动画面: the first activity of a cold start hands the system's launch window to Dart's.
         LaunchScreen.onActivityCreate(this, coldDart = FlutterEngineCache.getInstance().get(ENGINE_ID) == null)
         // Recreated, or reopened from recents: the launch intent is an old notification tap or
@@ -117,12 +113,15 @@ class MainActivity : FlutterActivity() {
         super.onConfigurationChanged(newConfig)
         // Light / dark: a custom launch screen's plain splash colour (the page's) may change with it.
         LaunchThemeSync.sync(this)
+        // The language: other apps' text actions are named in it.
+        textActions?.forget()
     }
 
     override fun onResume() {
         super.onResume()
-        io.github.ccch1mneyyy.dsh_app.phone.background.BackgroundControl.get(applicationContext).restoreKeptChannel()
         inForeground = true
+        // Another app may have been changed meanwhile.
+        textActions?.forget()
         // Coming back counts as activity: the first frames may not be scheduled yet.
         framesActive = true
         applyRefreshRate()
@@ -190,9 +189,18 @@ class MainActivity : FlutterActivity() {
         super.onPause()
     }
 
+    /** The pet's MediaProjection screen-capture permission answer. */
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == io.github.ccch1mneyyy.dsh_app.pet.PetScreenshot.REQUEST_CODE) {
+            io.github.ccch1mneyyy.dsh_app.pet.PetScreenshot.onActivityResult(this, requestCode, resultCode, data)
+        }
+    }
+
     /** Per activity: the handler acts on this activity, so it goes with it (see [cleanUpFlutterEngine]). */
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        textActions = CachedTextActions.install(flutterEngine)
         appChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "dsh/app")
         appChannel!!.setMethodCallHandler { call, result ->
             when (call.method) {
@@ -235,6 +243,7 @@ class MainActivity : FlutterActivity() {
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
         appChannel?.setMethodCallHandler(null)
         appChannel = null
+        textActions = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 

@@ -1,13 +1,40 @@
 // Dev-fixture smoke test. This proves Dart/controller/HTTP wiring only;
 // app/tool/pet_actions_probe.py separately requires actual Android overlay UI.
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dsh_app/dev/pet_actions_probe_main.dart';
 import 'package:dsh_app/pets/pet_overlay_actions.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../test/chat/support/composer_fakes.dart' show silentWav;
+/// A canonical 16 kHz mono PCM16 WAV of [seconds] of silence.
+// ignore: unused_element -- referenced when the probe runs a real transcription
+Uint8List silentWav(double seconds) {
+  final samples = (seconds * 16000).round();
+  final data = samples * 2;
+  final bytes = ByteData(44 + data);
+  void ascii(int at, String s) {
+    for (var i = 0; i < s.length; i++) {
+      bytes.setUint8(at + i, s.codeUnitAt(i));
+    }
+  }
+
+  ascii(0, 'RIFF');
+  bytes.setUint32(4, 36 + data, Endian.little);
+  ascii(8, 'WAVE');
+  ascii(12, 'fmt ');
+  bytes.setUint32(16, 16, Endian.little);
+  bytes.setUint16(20, 1, Endian.little);
+  bytes.setUint16(22, 1, Endian.little);
+  bytes.setUint32(24, 16000, Endian.little);
+  bytes.setUint32(28, 32000, Endian.little);
+  bytes.setUint16(32, 2, Endian.little);
+  bytes.setUint16(34, 16, Endian.little);
+  ascii(36, 'data');
+  bytes.setUint32(40, data, Endian.little);
+  return bytes.buffer.asUint8List();
+}
 
 class _LoopbackHttp extends HttpOverrides {}
 

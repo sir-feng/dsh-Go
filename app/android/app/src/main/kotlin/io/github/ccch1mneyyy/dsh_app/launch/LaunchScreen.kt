@@ -21,8 +21,6 @@ import io.github.ccch1mneyyy.dsh_app.MainActivity
 import io.github.ccch1mneyyy.dsh_app.R
 import io.github.ccch1mneyyy.dsh_app.icons.LauncherIconPlugin
 import io.github.ccch1mneyyy.dsh_app.icons.LauncherIcons
-import io.github.ccch1mneyyy.dsh_app.runtime.LaunchStart
-import io.github.ccch1mneyyy.dsh_app.runtime.RuntimeController
 import java.lang.ref.WeakReference
 import java.nio.ByteBuffer
 import java.util.concurrent.FutureTask
@@ -105,10 +103,8 @@ object LaunchScreen {
         if (!coldDart) return
         active = true
         this.activity = WeakReference(activity)
-        // Before LaunchStart's own start (posted after its device probe): what the app found.
-        engineRunningAtLaunch = runCatching {
-            RuntimeController.get(activity).phase == RuntimeController.Phase.RUNNING
-        }.getOrDefault(false)
+        // Remote-only build: no local engine survives the activity.
+        engineRunningAtLaunch = false
         val sdk = Build.VERSION.SDK_INT
         val metrics = activity.resources.displayMetrics
         val iconPx = LaunchGeometry.iconPx(metrics.density)
@@ -299,9 +295,8 @@ object LaunchScreen {
                 null
             }
             val deadline = SystemClock.elapsedRealtime() + START_WAIT_MS
-            while (LaunchStart.decided == null && SystemClock.elapsedRealtime() < deadline) Thread.sleep(10)
-            val phaseNow = context?.let { c -> runCatching { RuntimeController.get(c).phase.wire }.getOrNull() }
-            val cold = LaunchEngine.cold(engineRunningAtLaunch, LaunchStart.decided, phaseNow)
+            while (SystemClock.elapsedRealtime() < deadline) Thread.sleep(10)
+            val cold = LaunchEngine.cold(engineRunningAtLaunch, true, null)
             main.post { result.success(base + mapOf("icon" to pixels, "coldEngine" to cold)) }
         }
     }
@@ -359,7 +354,6 @@ object LaunchScreen {
     private fun writeLine() {
         val line = LaunchGeometry.line(marks) ?: return
         Log.i(TAG, line)
-        appContext?.let { context -> runCatching { RuntimeController.get(context).note(line) } }
     }
 
     internal fun done() {

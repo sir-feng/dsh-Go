@@ -19,8 +19,6 @@ import io.github.ccch1mneyyy.dsh_app.MainActivity
 import io.github.ccch1mneyyy.dsh_app.R
 import io.github.ccch1mneyyy.dsh_app.i18n.AppStrings
 import io.github.ccch1mneyyy.dsh_app.pet.PetOverlay
-import io.github.ccch1mneyyy.dsh_app.phone.PhoneControl
-import io.github.ccch1mneyyy.dsh_app.runtime.DshService
 import io.github.ccch1mneyyy.dsh_app.theme.ThemeAccent
 
 /**
@@ -41,8 +39,7 @@ import io.github.ccch1mneyyy.dsh_app.theme.ThemeAccent
  * per [MIN_GAP_MS] (NotificationManager drops bursts); the post is refreshed while it lasts and
  * times out otherwise, so a process that died doesn't leave 「工作中」 behind.
  *
- * Content: [LiveContent]. The agent's part comes from Dart ([update]); phone control's is read
- * here ([PhoneControl.liveTask]) whenever it changes ([refresh]).
+ * Content: [LiveContent]. The agent's part comes from Dart ([update]).
  */
 object LiveActivity {
     const val CHANNEL = "dsh-live"
@@ -126,7 +123,7 @@ object LiveActivity {
     fun status(context: Context): Map<String, Any?> {
         val ctx = attach(context)
         val canPost = canPromote(ctx)
-        val page = Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+        val page = Build.VERSION.SDK_INT >= 36 &&
             settingsIntent(ctx).resolveActivity(ctx.packageManager) != null
         val xiaomi = XiaomiFocus.allowed(ctx)
         return mapOf(
@@ -141,13 +138,13 @@ object LiveActivity {
     /** The system page with this app's 「实时活动」 switch (Android 16 QPR1+); check it resolves. */
     @SuppressLint("InlinedApi")
     fun settingsIntent(context: Context): Intent =
-        Intent(Settings.ACTION_APP_NOTIFICATION_PROMOTION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        Intent("android.settings.APP_NOTIFICATION_PROMOTION_SETTINGS").putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
 
     private fun attach(context: Context): Context = context.applicationContext.also { app = it }
 
     private fun enabled(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(K_ENABLED, true)
 
-    private fun canPromote(ctx: Context): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA &&
+    private fun canPromote(ctx: Context): Boolean = Build.VERSION.SDK_INT >= 36 &&
         runCatching { nm(ctx).canPostPromotedNotifications() }.getOrDefault(false)
 
     private fun nm(ctx: Context) = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -175,25 +172,8 @@ object LiveActivity {
         if (!content.ending) handler.postDelayed(repost, REFRESH_MS)
     }
 
-    private fun phoneContent(ctx: Context): LiveContent? {
-        val task = PhoneControl.peek()?.liveTask() ?: return null
-        if (task.id != phoneTask) {
-            phoneTask = task.id
-            phoneSince = System.currentTimeMillis()
-        }
-        val title = AppStrings.get(ctx, R.string.phone_running)
-        return LiveContent(
-            kind = LiveContent.Kind.PHONE,
-            title = title,
-            text = task.line ?: task.app.orEmpty(),
-            chip = AppStrings.get(ctx, if (task.paused) R.string.live_chip_paused else R.string.live_chip_phone),
-            publicText = title,
-            sinceMs = phoneSince,
-            packId = packId,
-            mood = "working",
-            phoneTaskId = task.id,
-        )
-    }
+    private fun phoneContent(ctx: Context): LiveContent? = null
+    // Phone control is removed from this app; the PHONE live card no longer exists.
 
     private fun post(ctx: Context, c: LiveContent) {
         val nm = nm(ctx)
@@ -216,7 +196,7 @@ object LiveActivity {
         val since = c.sinceMs
         if (since != null && !c.ending) builder.setWhen(since).setShowWhen(true).setUsesChronometer(true) else builder.setShowWhen(false)
         picture?.let(builder::setLargeIcon)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+        if (Build.VERSION.SDK_INT >= 36) {
             builder.setStyle(
                 if (c.busy) {
                     Notification.ProgressStyle()
@@ -232,13 +212,7 @@ object LiveActivity {
         } else {
             builder.setStyle(Notification.BigTextStyle().bigText(c.text))
         }
-        if (c.kind == LiveContent.Kind.PHONE && c.phoneTaskId != null) {
-            val stop = PendingIntent.getService(
-                ctx, ID, DshService.phoneStopIntent(ctx, c.phoneTaskId),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-            )
-            builder.addAction(Notification.Action.Builder(null, AppStrings.get(ctx, R.string.service_stop_phone), stop).build())
-        }
+        // Phone-control stop actions were removed with the phone module.
         val icon = picture?.let(Icon::createWithBitmap) ?: Icon.createWithResource(ctx, R.mipmap.ic_launcher)
         XiaomiFocus.apply(ctx, builder, c, icon)
         nm.notify(ID, builder.build())
@@ -252,7 +226,7 @@ object LiveActivity {
             .setContentTitle(AppStrings.APP_NAME)
             .setContentText(c.publicText)
             .setOngoing(true)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) c.chipWords?.let(builder::setShortCriticalText)
+        if (Build.VERSION.SDK_INT >= 36) c.chipWords?.let(builder::setShortCriticalText)
         return builder.build()
     }
 

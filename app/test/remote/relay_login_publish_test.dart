@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'package:dsh_remote/dsh_remote.dart' as remote;
 import 'package:dsh_app/l10n/l10n.dart';
 import 'package:dsh_app/remote/secret_store.dart';
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/ui/remote/relay_login_sheet.dart';
@@ -19,8 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'real_io_driver.dart';
 import '../../../packages/dsh_remote/test/support/fake_remote.dart';
-import '../shell/golden_harness.dart'
-    show FakeRuntime, runningStatus, usePhoneSurface;
+import '../shell/golden_harness.dart' show usePhoneSurface;
 
 const _guard = Duration(seconds: 8);
 
@@ -158,11 +156,6 @@ void main() {
             relayAccountProvider.overrideWith(_ObservedAccount.new),
             localConnectionProvider.overrideWith(_NoLocal.new),
             networkKicksProvider.overrideWithValue(const Stream<void>.empty()),
-            localRuntimeProvider.overrideWith(
-              () => FakeRuntime(
-                const LocalRuntimeState(loaded: true, status: runningStatus),
-              ),
-            ),
             urlOpenerProvider.overrideWithValue((url) async {
               opened.complete(url);
               return true;

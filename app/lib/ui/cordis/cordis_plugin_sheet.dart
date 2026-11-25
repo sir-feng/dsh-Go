@@ -20,7 +20,7 @@ import '../common/expand_reveal.dart';
 import '../common/list_page_row.dart';
 import '../features/feature_format.dart' show featureErrorText;
 import '../plugins/seats/cordis_island_seat.dart';
-import '../safe_mode/recovery_actions.dart';
+import '../common/recovery_actions.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
 import '../web/dsh_web_launcher.dart';

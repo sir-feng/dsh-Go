@@ -8,7 +8,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/settings_state.dart';
 import 'package:dsh_app/state/update_state.dart';
 import 'package:dsh_app/ui/update/update_sheet.dart';
@@ -21,7 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../shell/golden_harness.dart';
+import '../support/app_harness.dart';
 import 'support.dart';
 
 const _version = '1.2.0+11011200';
@@ -270,15 +269,12 @@ void main() {
     });
 
     Future<void> pump(WidgetTester tester, AppUpdateState state) async {
-      usePhoneSurface(tester);
+      usePhoneView(tester);
       await tester.pumpWidget(
-        goldenApp(
-          home: const Scaffold(body: SingleChildScrollView(child: UpdateSheet())),
+        testApp(
+          const Scaffold(body: SingleChildScrollView(child: UpdateSheet())),
           brightness: Brightness.light,
           overrides: [
-            localRuntimeProvider.overrideWith(
-              () => FakeRuntime(const LocalRuntimeState(loaded: true, status: runningStatus)),
-            ),
             settingsProvider.overrideWith(() => FakeSettings(const AppSettings(loaded: true))),
             appUpdateProvider.overrideWith(() => _Offer(state)),
           ],

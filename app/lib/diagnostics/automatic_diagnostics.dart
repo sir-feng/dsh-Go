@@ -9,8 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../l10n/l10n.dart';
-import '../runtime/runtime_bridge.dart';
-import '../runtime/runtime_state.dart';
 import '../state/android_features.dart';
 import '../state/app_info.dart';
 import '../state/connection_state.dart';
@@ -472,11 +470,10 @@ final automaticDiagnosticsProvider = Provider<AutomaticDiagnostics>((ref) {
     collect: () async {
       // Capture ref-bound state before the platform await. No ref access after
       // await: this provider can be disposed or the host can change meanwhile.
-      final status = ref.read(localRuntimeProvider).status;
       final settings = ref.read(settingsProvider);
       final channel = ref.read(diagnosticsChannelProvider);
       final native = await channel.info();
-      return DiagnosticsSnapshot(at: DateTime.now(), status: status, settings: settings, native: native);
+      return DiagnosticsSnapshot(at: DateTime.now(), settings: settings, native: native);
     },
     load: () async {
       final raw = (await SharedPreferences.getInstance()).getString(key);
@@ -493,7 +490,6 @@ final automaticDiagnosticsProvider = Provider<AutomaticDiagnostics>((ref) {
   Timer? poll;
   DshClient? owner;
   ProviderSubscription<AsyncValue<HostConnection?>>? activeSubscription;
-  ProviderSubscription<AsyncValue<HostConnection?>>? localSubscription;
   bool updating = false;
   bool updateAgain = false;
   void useClient(DshClient? next) {
@@ -523,35 +519,21 @@ final automaticDiagnosticsProvider = Provider<AutomaticDiagnostics>((ref) {
             settings.loaded &&
             settings.automaticDiagnostics &&
             ref.read(appForegroundProvider) &&
-            WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed &&
-            ref.read(activeHostProvider).isLocal &&
-            ref.read(localRuntimeProvider).loaded &&
-            ref.read(localRuntimeProvider).status.phase == RuntimePhase.running;
+            WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
         if (!baseReady) {
           // Revoke before removing listeners. Closed/default-off diagnostics
           // must not construct either connection (including remote host links).
           useClient(null);
           activeSubscription?.close();
           activeSubscription = null;
-          localSubscription?.close();
-          localSubscription = null;
           continue;
         }
         // Ref.listen returns a closable subscription. Keep the coordinator
         // stable while lazily attaching connections only after the base gates.
-        localSubscription ??= ref.listen(localConnectionProvider, (_, _) => update());
         activeSubscription ??= ref.listen(activeConnectionProvider, (_, _) => update());
         final active = activeSubscription!.read();
-        final local = localSubscription!.read();
-        final client = local.value?.client;
-        final eligible =
-            !active.isLoading &&
-            !active.hasError &&
-            !local.isLoading &&
-            !local.hasError &&
-            client != null &&
-            active.value?.isLocal == true &&
-            identical(active.value?.client, client);
+        final client = active.value?.client;
+        final eligible = !active.isLoading && !active.hasError && client != null;
         useClient(eligible ? client : null);
       } while (updateAgain && ref.mounted);
     } finally {
@@ -562,14 +544,12 @@ final automaticDiagnosticsProvider = Provider<AutomaticDiagnostics>((ref) {
   final lifecycle = AppLifecycleListener(onStateChange: (_) => update());
   ref.listen(settingsProvider, (_, _) => update());
   ref.listen(activeHostProvider, (_, _) => update());
-  ref.listen(localRuntimeProvider.select((s) => (s.loaded, s.status.phase)), (_, _) => update());
   ref.listen(appForegroundProvider, (_, _) => update());
   void changed() => unawaited(coordinator.check());
   appErrorLog.revision.addListener(changed);
   ref.onDispose(() {
     poll?.cancel();
     activeSubscription?.close();
-    localSubscription?.close();
     lifecycle.dispose();
     appErrorLog.revision.removeListener(changed);
     coordinator.dispose();

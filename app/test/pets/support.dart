@@ -26,7 +26,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 
-export '../chat/support/harness.dart' show testApp, usePhoneView, testTheme;
+export '../support/app_harness.dart' show testApp, testTheme, usePhoneView;
 
 /// A shipped pack, from `assets/pets/<id>/pack.json`.
 PetPack diskPack(String id) =>

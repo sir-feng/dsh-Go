@@ -40,18 +40,13 @@ class PluginHost {
   bool get canInstall => !safeMode && !installRefused && client.canInstallPlugins;
 }
 
-/// The on-device engine runs in safe mode. A seam of its own so plugin state
-/// doesn't need the native runtime (tests override it).
-final localSafeModeProvider = Provider<bool>(
-  (ref) => ref.watch(localRuntimeProvider.select((s) => s.status.inSafeMode)),
-);
-
+/// The on-device engine's safe mode is gone with the runtime; a local host
+/// can no longer be selected, so plugin state never needs it.
 final pluginHostProvider = Provider<PluginHost?>((ref) {
   final connection = ref.watch(readListLiveConnectionProvider);
   if (connection == null) return null;
-  final safeMode = connection.isLocal && ref.watch(localSafeModeProvider);
   final installRefused = ref.watch(operatingSystemProvider) == 'ohos' && ref.watch(marketInstallRefusedProvider);
-  return PluginHost.of(connection, safeMode: safeMode, installRefused: installRefused);
+  return PluginHost.of(connection, safeMode: false, installRefused: installRefused);
 });
 
 // ── Installed bundles ────────────────────────────────────────────────────────
@@ -358,14 +353,8 @@ class InstalledPluginsController extends AsyncNotifier<List<PluginBundle>?> {
     cache.stamp(bundles, identity, host.client);
     cache.put(readListKey(identity, ReadListKind.plugins), bundles, () => CachedPlugins(bundles));
     _latest = bundles;
-    _counted(bundles);
     return _visible(bundles);
   }
-
-  /// How many plugins 「已安装」 lists, for the usage statistics.
-  void _counted(List<PluginBundle> bundles) => ref
-      .read(usageStatsProvider.notifier)
-      .plugins(bundles.where((b) => bundleGroup(b) == BundleGroup.installed && b.installed).length);
 
   /// Re-reads the list; keeps the old one (and rethrows) on failure.
   Future<void> refresh() async {
@@ -397,7 +386,6 @@ class InstalledPluginsController extends AsyncNotifier<List<PluginBundle>?> {
         }
         state = AsyncData(_visible(bundles));
         cache.finishRefresh(ReadListKind.plugins, activity);
-        _counted(bundles);
       }
     } on Object catch (error, stack) {
       if (r.mounted && seq == _loadSeq && identical(client, _client)) {

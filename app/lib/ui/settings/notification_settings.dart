@@ -4,11 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
-import '../../runtime/runtime_state.dart';
 import '../../state/android_features.dart';
 import '../../state/live_activity_state.dart';
 import '../../state/notify_state.dart';
-import '../phone/phone_widgets.dart';
+import '../common/status_note.dart';
 import '../shell/page_frame.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
@@ -166,7 +165,11 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
     tone: NoteTone.warn,
     icon: AppIcons.notificationsOff,
     title: _ohos ? appL10n.harmonyLiveBlockedTitle : appL10n.liveBlockedTitle,
-    text: _ohos ? appL10n.harmonyLiveBlockedText : appL10n.liveBlockedText,
+    text: _ohos
+        ? appL10n.harmonyLiveBlockedText
+        : wordsForIos
+        ? appL10n.liveIosBlockedText
+        : appL10n.liveBlockedText,
     margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
     action: TextButton.icon(
       style: TextButton.styleFrom(
@@ -225,13 +228,7 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
         ),
         SettingsSection(
           title: l10n.pluginsAlerts,
-          footer: Text(
-            !ohos
-                ? l10n.pluginsRemoteAlertsRequirement
-                : ref.watch(localRuntimeProvider.select((s) => s.status.longTaskEligible))
-                ? l10n.harmonyAlertsRequirementLong
-                : l10n.harmonyAlertsRequirement,
-          ),
+          footer: Text(!ohos ? l10n.pluginsRemoteAlertsRequirement : l10n.harmonyAlertsRequirement),
           children: [
             SettingsSwitchTile(
               spot: Spots.notifyDone,
@@ -260,25 +257,31 @@ class _NotificationSettingsPageState extends ConsumerState<NotificationSettingsP
           ],
         ),
         if (liveBlocked) _liveNote(),
-        // iOS has them, this app doesn't yet: nothing to switch on.
-        if (!wordsForIos)
-          SettingsSection(
-            title: ohos ? l10n.harmonyLiveTitle : l10n.liveSettingsTitle,
-            footer: Text(ohos ? l10n.harmonyLiveFooter : l10n.liveSettingsFooter),
-            children: [
-              SettingsSwitchTile(
-                spot: Spots.notifyLive,
-                title: ohos ? l10n.harmonyLiveSwitch : null,
-                subtitle: ohos
-                    ? (liveSupported ? l10n.harmonyLiveSubtitle : l10n.harmonyLiveUnavailable)
-                    : liveSupported
-                    ? l10n.liveSettingsSubtitle
-                    : l10n.liveUnsupported,
-                value: prefs.live && liveSupported,
-                onChanged: on && liveSupported ? (v) => unawaited(notifier.setLive(v)) : null,
-              ),
-            ],
+        SettingsSection(
+          title: ohos ? l10n.harmonyLiveTitle : l10n.liveSettingsTitle,
+          footer: Text(
+            ohos
+                ? l10n.harmonyLiveFooter
+                : wordsForIos
+                ? l10n.liveIosFooter
+                : l10n.liveSettingsFooter,
           ),
+          children: [
+            SettingsSwitchTile(
+              spot: Spots.notifyLive,
+              title: ohos ? l10n.harmonyLiveSwitch : null,
+              subtitle: ohos
+                  ? (liveSupported ? l10n.harmonyLiveSubtitle : l10n.harmonyLiveUnavailable)
+                  : wordsForIos
+                  ? (liveSupported ? l10n.liveIosSubtitle : l10n.liveIosUnsupported)
+                  : liveSupported
+                  ? l10n.liveSettingsSubtitle
+                  : l10n.liveUnsupported,
+              value: prefs.live && liveSupported,
+              onChanged: on && liveSupported ? (v) => unawaited(notifier.setLive(v)) : null,
+            ),
+          ],
+        ),
         SettingsSection(
           title: l10n.pluginsSystemSettings,
           // Android posts a public version for the lock screen; here the real text goes to the system.

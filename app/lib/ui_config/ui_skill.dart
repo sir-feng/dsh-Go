@@ -15,18 +15,14 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart' show BuildContext;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/l10n.dart';
-import '../runtime/runtime_bridge.dart';
-import '../runtime/runtime_state.dart';
 import '../state/android_features.dart' show operatingSystemProvider;
 import '../state/hosts_state.dart';
-import 'ui_config_state.dart';
 
 const uiSkillName = 'dsh-go-ui';
 const uiSkillAssetDir = 'assets/skills/dsh-go-ui/';
@@ -182,186 +178,6 @@ final extraSkillLoadersProvider = Provider<List<UiSkillBundleLoader>>((ref) {
     () => loadUiSkillBundle(null, petThemeSkillName),
   ];
 });
-
-/// Installs the skill each time the on-device engine comes up (and at launch
-/// when it is already running); the state is the last result (null before
-/// the first run). The app root (`RootGate`, ui/shell/root_gate.dart) keeps it alive with
-/// `ref.listen(uiSkillAutoInstallProvider, (_, _) {})`. Each run compares
-/// every file's text, so an app update brings its skills at the next start.
-class UiSkillAutoInstaller extends Notifier<UiSkillInstallResult?> {
-  _UiSkillDrain? _drain;
-
-  @override
-  UiSkillInstallResult? build() {
-    final r = ref;
-    late final _UiSkillDrain drain;
-    drain = _UiSkillDrain(
-      r,
-      bridge: r.watch(runtimeBridgeProvider),
-      resolve: r.watch(uiRootfsResolverProvider),
-      primary: r.watch(uiSkillBundleLoaderProvider),
-      extras: List.of(r.watch(extraSkillLoadersProvider)),
-      publish: (result) {
-        if (r.mounted && identical(_drain, drain)) state = result;
-      },
-    );
-    _drain = drain;
-    r.onDispose(drain.dispose);
-    r.listen<RuntimeStatus>(localRuntimeProvider.select((runtime) => runtime.status), (_, status) {
-      drain.update(status);
-    }, fireImmediately: true);
-    return null;
-  }
-
-  /// The active batch and its one coalesced successor, if any (tests await it).
-  Future<void>? get running => _drain?.running;
-}
-
-/// Each build owns its Ref, bridge and loaders. Retired async continuations can
-/// finish but cannot acquire a new run's write permission or publish its state.
-class _UiSkillDrain {
-  _UiSkillDrain(
-    this.ref, {
-    required this.bridge,
-    required this.resolve,
-    required this.primary,
-    required this.extras,
-    required this.publish,
-  });
-
-  final Ref ref;
-  final RuntimeBridge bridge;
-  final Future<Directory?> Function() resolve;
-  final UiSkillBundleLoader primary;
-  final List<UiSkillBundleLoader> extras;
-  final void Function(UiSkillInstallResult) publish;
-  final String _nonce = List.generate(4, (_) => Random.secure().nextInt(1 << 32).toRadixString(16)).join('-');
-  int _serial = 0;
-  int _epoch = 0;
-  bool _disposed = false;
-  (String, String, int?)? _ready;
-  _UiSkillBatch? _pending;
-  _UiSkillBatch? _active;
-  Completer<void>? _completion;
-
-  Future<void>? get running => _completion?.future;
-
-  void update(RuntimeStatus status) {
-    if (_disposed) return;
-    final ready = status.isRunning && status.token!.isNotEmpty
-        ? (status.token!, status.baseUrl!, status.managedSkillGeneration)
-        : null;
-    if (ready == _ready) return;
-    _ready = ready;
-    _epoch++;
-    _cancelActive();
-    _pending = ready == null ? null : _UiSkillBatch(_epoch, ready.$1, ready.$2, ready.$3);
-    if (_pending != null && _completion == null) {
-      final completion = _completion = Completer<void>();
-      unawaited(
-        _run().whenComplete(() {
-          if (identical(_completion, completion)) _completion = null;
-          completion.complete();
-        }),
-      );
-    }
-  }
-
-  bool _current(_UiSkillBatch batch) {
-    if (_disposed || !ref.mounted || batch.retired || batch.epoch != _epoch || !identical(_active, batch)) return false;
-    // Check the actual provider too: an async continuation may run before the
-    // listened status notification has retired this batch.
-    final status = ref.read(localRuntimeProvider).status;
-    return status.isRunning &&
-        status.token == batch.token &&
-        status.baseUrl == batch.baseUrl &&
-        status.managedSkillGeneration == batch.generation;
-  }
-
-  void _cancelActive() {
-    final batch = _active;
-    final request = batch?.requestId;
-    if (request != null && !batch!.cancelRequested) {
-      batch.cancelRequested = true;
-      unawaited(bridge.cancelManagedSkill(request).catchError((_) {}));
-    }
-  }
-
-  void dispose() {
-    _disposed = true;
-    _epoch++;
-    _pending = null;
-    _cancelActive();
-  }
-
-  Future<void> _run() async {
-    while (!_disposed && ref.mounted && _pending != null) {
-      final batch = _active = _pending!;
-      _pending = null;
-      try {
-        final root = await resolve();
-        if (root == null || !_current(batch)) continue;
-        final bundle = await primary();
-        if (!_current(batch)) continue;
-        final result = await _install(batch, root, bundle);
-        if (!_current(batch)) continue;
-        if (result != null) publish(result);
-        for (final load in extras) {
-          try {
-            if (!_current(batch)) break;
-            final extra = await load();
-            if (!_current(batch)) break;
-            await _install(batch, root, extra);
-          } catch (_) {}
-        }
-      } catch (_) {
-        // Missing native bridge, rejected transaction or failed assets: next
-        // engine start retries. Never write the live root from this isolate.
-      } finally {
-        if (identical(_active, batch)) _active = null;
-      }
-    }
-  }
-
-  Future<UiSkillInstallResult?> _install(_UiSkillBatch batch, Directory root, UiSkillBundle bundle) async {
-    if (!_current(batch)) return null;
-    final requestId = '$_nonce-${++_serial}';
-    batch.requestId = requestId;
-    try {
-      final response = await bridge.installManagedSkill(
-        requestId: requestId,
-        expectedRoot: root.path,
-        expectedToken: batch.token,
-        expectedGeneration: batch.generation,
-        name: bundle.name,
-        files: bundle.files,
-      );
-      if (!_current(batch)) return null;
-      if (!response.current) {
-        batch.retired = true;
-        return null;
-      }
-      return UiSkillInstallResult.values.where((value) => value.name == response.result).firstOrNull;
-    } finally {
-      if (batch.requestId == requestId) batch.requestId = null;
-    }
-  }
-}
-
-class _UiSkillBatch {
-  _UiSkillBatch(this.epoch, this.token, this.baseUrl, this.generation);
-  final int epoch;
-  final String token;
-  final String baseUrl;
-  final int? generation;
-  String? requestId;
-  bool cancelRequested = false;
-  bool retired = false;
-}
-
-final uiSkillAutoInstallProvider = NotifierProvider<UiSkillAutoInstaller, UiSkillInstallResult?>(
-  UiSkillAutoInstaller.new,
-);
 
 // ── Remote hosts ────────────────────────────────────────────────────────────
 

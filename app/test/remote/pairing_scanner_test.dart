@@ -8,7 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-import '../chat/support/harness.dart';
+import '../support/app_harness.dart';
 
 const _code = 'test pairing code';
 

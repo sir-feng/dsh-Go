@@ -1,20 +1,12 @@
 package io.github.ccch1mneyyy.dsh_app.launch
 
-import io.github.ccch1mneyyy.dsh_app.runtime.RuntimeController
-
 /**
- * Whether this launch is a cold start of the engine: the launch screen then stays for its whole
- * motion (or until the engine is up) instead of leaving the moment the app is usable, since
- * nothing can be asked until the engine answers. Pure, unit-tested.
+ * Whether this launch is a cold start: with the local engine gone this is the
+ * process's first activity, which [LaunchScreen] already knows.
  */
 internal object LaunchEngine {
-    /**
-     * [runningAtLaunch]: the engine already ran when the first activity of this process was
-     * created (one that outlived the app, taken over again). [started]: LaunchStart started it
-     * for this launch (null: it hasn't decided yet, then [phaseNow] being `starting` counts).
-     */
     fun cold(runningAtLaunch: Boolean, started: Boolean?, phaseNow: String?): Boolean =
-        !runningAtLaunch && (started ?: (phaseNow == RuntimeController.Phase.STARTING.wire))
+        !runningAtLaunch && (started ?: false)
 }
 
 /**

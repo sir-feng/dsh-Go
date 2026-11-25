@@ -1,7 +1,6 @@
 // The in-app half: banner over any page, tap routing (notification or banner),
 // and the "is the chat on screen" signal (lib/ui/notify/chat_alert_host.dart).
 
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/bots_state.dart';
 import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
@@ -19,8 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../chat/support/harness.dart';
-import '../shell/golden_harness.dart' as shell;
+import '../support/app_harness.dart';
 import 'support.dart';
 
 class _Local extends LocalConnectionController {
@@ -89,8 +87,7 @@ void main() {
                 ),
               ),
         overrides: [
-          localRuntimeProvider.overrideWith(StaticRuntime.new),
-          settingsProvider.overrideWith(() => shell.FakeSettings(const AppSettings(loaded: true))),
+          settingsProvider.overrideWith(() => FakeSettings(const AppSettings(loaded: true))),
           sessionsProvider.overrideWith(_Sessions.new),
           workspacesProvider.overrideWith(_Workspaces.new),
           dsBotApiFactoryProvider.overrideWithValue((_) => null),

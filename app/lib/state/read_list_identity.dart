@@ -1,20 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:dsh_client/dsh_client.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 
-import '../runtime/local_paths.dart';
-import '../runtime/runtime_bridge.dart';
-import '../runtime/runtime_state.dart';
-import 'account_state.dart';
 import 'connection_state.dart';
 import 'hosts_state.dart';
 import 'read_list_epoch.dart';
-import 'settings_state.dart';
 
 /// The source of a *display* snapshot. No endpoint token, password, header or
 /// credential value is retained. The format version separates future DTOs.
@@ -31,37 +24,6 @@ class ReadListIdentity {
   @override
   int get hashCode => digest.hashCode;
 }
-
-/// Resolve the real root asynchronously. An absent/unknown root is not an
-/// identity. Installation changes retry the resolution; start/stop does not.
-final localReadListRootProvider = FutureProvider<String?>((ref) async {
-  ref.watch(
-    localRuntimeProvider.select(
-      (s) => (
-        s.status.installedVersion,
-        s.status.phase == RuntimePhase.installing || s.status.phase == RuntimePhase.notInstalled,
-      ),
-    ),
-  );
-  try {
-    final root = LocalPaths.root ?? '${(await getApplicationSupportDirectory()).path}/runtime/rootfs';
-    return await Directory(root).resolveSymbolicLinks();
-  } on Object {
-    return null;
-  }
-});
-
-class _RootEpoch {
-  bool resetting = false;
-  int generation = 0;
-
-  void observe(bool next) {
-    if (next && !resetting) generation++;
-    resetting = next;
-  }
-}
-
-final _rootEpochProvider = Provider((ref) => _RootEpoch());
 
 class _ResolvedDirectories {
   final _digests = <String, String>{};
@@ -143,43 +105,10 @@ final readListIdentityProvider = Provider<ReadListIdentity?>((ref) {
   }
 
   switch (selected.kind) {
+    // The local host (and its runtime) is gone from this build; only remote
+    // hosts (SSH, relay) carry an identity now.
     case HostKind.local:
-      final runtime = ref.watch(localRuntimeProvider);
-      final rootEpoch = ref.watch(_rootEpochProvider);
-      final resetting =
-          runtime.loaded &&
-          (runtime.status.phase == RuntimePhase.installing || runtime.status.phase == RuntimePhase.notInstalled);
-      rootEpoch.observe(resetting);
-      final root = ref.watch(localReadListRootProvider).value;
-      final version = runtime.status.installedVersion;
-      if (resetting || !runtime.loaded || root == null || version == null || version.isEmpty) return null;
-      if (!ref.watch(settingsProvider.select((s) => s.loaded))) return null;
-      // AccountController deliberately keeps the last known login across a
-      // process disconnect. Unknown identities are never inferred as signed out.
-      final account = ref.watch(accountProvider);
-      final accountController = ref.read(accountProvider.notifier);
-      if (connection == null
-          ? !accountController.readListIdentityKnown
-          : !accountController.readListIdentityFor(connection.client)) {
-        return null;
-      }
-      final accountId = switch (account.phase) {
-        AccountPhase.signedIn => account.profile?.id,
-        AccountPhase.signedOut => 'signed-out',
-        AccountPhase.unsupported => 'unsupported',
-        _ => null,
-      };
-      if (accountId == null || accountId.length > 256 || root.length > 4096 || version.length > 256) return null;
-      return ReadListIdentity.of([
-        'local',
-        root,
-        version,
-        runtime.status.mode.name,
-        rootEpoch.generation,
-        account.phase.name,
-        accountId,
-        epoch,
-      ]);
+      return null;
     case HostKind.ssh:
       final hosts = ref.watch(hostsProvider);
       final host = hosts.sshById(selected.id);

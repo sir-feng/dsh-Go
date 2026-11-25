@@ -1,7 +1,8 @@
 // The star prompt (docs/design/star-prompt.md): after half an hour with the
 // app in front, the whale girl asks for a star on GitHub, in a dialog, when
-// the person is idle in the chat; 「下次再说」 asks once more five hours of use
-// later, and that is all.
+// the person is idle in the chat; 「下次再说」 asks again at 2, 5, 10 and 20
+// hours of use, each time in other words (the last says it is the last), and
+// that is all.
 //
 // Off unless the build says `--dart-define=DSH_STAR_PROMPT=true`: off, nothing
 // here runs (no counting, no preferences). What is kept on the phone, in one
@@ -16,12 +17,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../phone/phone_channel.dart' show PhoneTaskStatus;
 import '../pets/pet_signals.dart' show petFocusProvider, petPendingProvider;
 import '../update/update_config.dart' show updateRepo;
 import 'draft_store.dart';
 import 'notify_state.dart' show appForegroundProvider, chatOnScreenProvider;
-import 'phone_state.dart' show phoneChannelProvider;
 import 'sessions_state.dart' show currentSessionProvider;
 import 'voice_state.dart';
 
@@ -37,14 +36,22 @@ final starProjectPage = Uri.https('github.com', '/$updateRepo');
 
 /// The numbers behind the prompt, with their reasons in the design note.
 abstract final class StarPromptRules {
-  /// Time in front before the first ask.
-  static const firstAsk = Duration(minutes: 30);
+  /// The time in front at which each ask comes (after 「下次再说」 or back for
+  /// the ones before it); each has its own words, the last says it is the last.
+  static const asks = [
+    Duration(minutes: 30),
+    Duration(hours: 2),
+    Duration(hours: 5),
+    Duration(hours: 10),
+    Duration(hours: 20),
+  ];
 
-  /// After 「下次再说」 (or back): this much more time in front before the second.
-  static const again = Duration(hours: 5);
+  /// At least this much more time in front after an ask before the next: one
+  /// that came up late doesn't bring the next right after it.
+  static const gap = Duration(hours: 1);
 
   /// Asked this often at most, ever.
-  static const maxShows = 2;
+  static int get maxShows => asks.length;
 
   /// How often time in front is written down (and the prompt looks again).
   static const tick = Duration(minutes: 1);
@@ -76,8 +83,12 @@ class StarPromptRecord {
   /// The time in front at which it asks next; null: never again.
   Duration? get nextAt {
     if (finished || shows >= StarPromptRules.maxShows) return null;
-    if (shows == 0) return StarPromptRules.firstAsk;
-    return (askedAt ?? Duration.zero) + StarPromptRules.again;
+    final at = StarPromptRules.asks[shows];
+    final soonest = switch (askedAt) {
+      final asked? => asked + StarPromptRules.gap,
+      null => Duration.zero,
+    };
+    return at > soonest ? at : soonest;
   }
 
   bool get due => switch (nextAt) {
@@ -291,8 +302,6 @@ class StarPromptScene {
     this.onScreen = true,
     this.running = false,
     this.waiting = false,
-    this.phoneActive = false,
-    this.phoneLastActive,
     this.voice = false,
     this.composing = false,
   });
@@ -307,83 +316,29 @@ class StarPromptScene {
   /// An approval or a question waits on the person.
   final bool waiting;
 
-  /// Phone control runs.
-  final bool phoneActive;
-
-  /// When phone control was last seen running ([starPromptClockProvider]).
-  final Duration? phoneLastActive;
-
   /// Dictation is on.
   final bool voice;
 
   /// The keyboard is up, or the composer holds something unsent.
   final bool composing;
 
-  /// Phone control runs, or ended moments ago.
-  bool phoneAt(Duration now) {
-    final last = phoneLastActive;
-    return phoneActive || (last != null && now - last < StarPromptRules.phoneCooldown);
-  }
-
   /// Nothing the dialog would interrupt.
-  bool quietAt(Duration now) => onScreen && !running && !waiting && !phoneAt(now) && !voice && !composing;
+  bool quietAt(Duration now) => onScreen && !running && !waiting && !voice && !composing;
 
   @override
   String toString() =>
-      'StarPromptScene(onScreen: $onScreen, running: $running, waiting: $waiting, phone: $phoneActive '
-      '($phoneLastActive), voice: $voice, composing: $composing)';
+      'StarPromptScene(onScreen: $onScreen, running: $running, waiting: $waiting, voice: $voice, composing: $composing)';
 }
-
-/// Phone control as the native side reports it: a task now, and when one was
-/// last seen. Nothing without a native side.
-class PhoneTaskSeenController extends Notifier<({bool active, Duration? lastActive})> {
-  @override
-  ({bool active, Duration? lastActive}) build() {
-    final channel = ref.watch(phoneChannelProvider);
-    StreamSubscription<Object?>? sub;
-    var disposed = false;
-    ref.onDispose(() {
-      disposed = true;
-      unawaited(sub?.cancel());
-    });
-    unawaited(() async {
-      try {
-        final status = await channel.status();
-        // Listening with no native side reports an error: only once it answered.
-        if (disposed || !status.ready) return;
-        _apply(status.task);
-        sub = channel.statusChanges.listen((s) => _apply(s.task), onError: (_) {});
-      } catch (_) {
-        // No platform channels at all.
-      }
-    }());
-    return (active: false, lastActive: null);
-  }
-
-  void _apply(PhoneTaskStatus task) {
-    if (!ref.mounted) return;
-    if (task.active || state.active) {
-      state = (active: task.active, lastActive: ref.read(starPromptClockProvider)());
-    }
-  }
-}
-
-final phoneTaskSeenProvider = NotifierProvider<PhoneTaskSeenController, ({bool active, Duration? lastActive})>(
-  PhoneTaskSeenController.new,
-);
 
 /// The scene from app state. Watching it keeps its sources alive, so the
 /// host holds it while the switch is on.
 final starPromptSceneProvider = Provider<StarPromptScene>((ref) {
-  final phone = ref.watch(phoneTaskSeenProvider);
   final session = ref.watch(currentSessionProvider);
   final draft = ref.watch(draftStoreProvider.select((s) => s.drafts[session ?? 'new']));
   return StarPromptScene(
     onScreen: ref.watch(appForegroundProvider) && ref.watch(chatOnScreenProvider),
     running: ref.watch(petFocusProvider)?.running ?? false,
     waiting: ref.watch(petPendingProvider).isNotEmpty,
-    phoneActive: phone.active,
-    phoneLastActive: phone.lastActive,
     voice: ref.watch(voiceInputActiveProvider),
     composing: draft != null && (draft.text.trim().isNotEmpty || draft.attachments.isNotEmpty),
   );

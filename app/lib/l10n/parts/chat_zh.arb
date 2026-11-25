@@ -89,7 +89,7 @@
   "chatGoToSettings": "去设置",
   "chatListeningEllipsis": "正在聆听…",
   "chatTranscribingEllipsis": "正在转写…",
-  "chatConnectToSend": "连接引擎后即可发送",
+  "chatConnectToSend": "连接远程主机后即可发送",
   "chatGeneratingSteerHint": "生成中 · 可直接插话",
   "chatComposerHint": "给 DSH 发消息…",
   "chatStopGenerating": "停止生成",

@@ -1,7 +1,6 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:dsh_app/remote/secret_store.dart';
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/ui/remote/relay_login_sheet.dart';
@@ -92,9 +91,6 @@ Future<_Fixture> _openFailedHost(WidgetTester tester, {String? provider = 'passw
           return true;
         }),
         networkKicksProvider.overrideWithValue(const Stream.empty()),
-        localRuntimeProvider.overrideWith(
-          () => FakeRuntime(const LocalRuntimeState(loaded: true, status: runningStatus)),
-        ),
       ],
     ),
   );

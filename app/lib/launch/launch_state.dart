@@ -238,8 +238,6 @@ class LaunchController extends ChangeNotifier {
   bool _firstFrame = false;
   bool _handingOver = false;
   Timer? _handOverTimer;
-  bool _waitsForEngine = true;
-  bool _engineReady = false;
   bool _motionDone = false;
   bool _reduced = false;
   bool _skipped = false;
@@ -376,12 +374,11 @@ class LaunchController extends ChangeNotifier {
 
   /// The app is usable (RootGate shows its first page). A custom picture plays its round first;
   /// the default motion finishes first only on a cold start of the engine, unless the engine is up
-  /// sooner; otherwise the launch screen leaves now. [waitsForEngine]: the first page talks to this
-  /// phone's engine (not a remote host's).
-  void ready({bool waitsForEngine = true}) {
+  /// sooner; otherwise the launch screen leaves now. (The local engine's cold-start wait is gone
+  /// with the runtime; only a custom picture holds the screen now.)
+  void ready() {
     if (_ready) return;
     _ready = true;
-    _waitsForEngine = waitsForEngine;
     if (native) unawaited(channel.mark('ready'));
     if (_phase == LaunchPhase.playing) {
       _leaveIfDone();
@@ -402,10 +399,9 @@ class LaunchController extends ChangeNotifier {
   static const readyCap = Duration(milliseconds: 1200);
 
   /// What the launch screen still covers (before the hand-over too), with motion allowed: the
-  /// user's own picture on every cold start of the app, whatever the engine is doing (opening, then
-  /// its whole round); the default motion only while this phone's engine starts cold.
-  bool get _coldHold =>
-      !_skipped && !_reduced && (showsCustom || (snapshot.coldEngine && _waitsForEngine && !_engineReady));
+  /// user's own picture on every cold start of the app. (The local engine's cold-start hold is
+  /// gone with the runtime.)
+  bool get _coldHold => !_skipped && !_reduced && showsCustom;
 
   /// Whether the launch screen stays although the app is ready: a custom picture for its whole
   /// round however long (the engine running, starting or off); the default motion on a cold start
@@ -420,14 +416,6 @@ class LaunchController extends ChangeNotifier {
     if (_phase != LaunchPhase.playing) return;
     _phase = LaunchPhase.leaving;
     notifyListeners();
-  }
-
-  /// The engine answers (its phase is running): a cold start's motion needn't finish.
-  void engineReady() {
-    if (_engineReady) return;
-    _engineReady = true;
-    if (native) unawaited(channel.mark('engine'));
-    _leaveIfDone();
   }
 
   /// The motion has come to rest (the default one played through, or the custom picture its

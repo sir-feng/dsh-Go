@@ -58,7 +58,7 @@
   "chatGoToSettings": "Open settings",
   "chatListeningEllipsis": "Listening…",
   "chatTranscribingEllipsis": "Transcribing…",
-  "chatConnectToSend": "Connect to the engine to send",
+  "chatConnectToSend": "Connect to the remote host to send",
   "chatGeneratingSteerHint": "Generating · Type to steer",
   "chatComposerHint": "Message DSH…",
   "chatStopGenerating": "Stop generating",

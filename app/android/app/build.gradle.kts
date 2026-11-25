@@ -77,9 +77,8 @@ android {
         manifestPlaceholders["appLabel"] = if (sideBuild) "DSH Go 测试" else "DSH Go"
         // java.nio.file (symlinks while unpacking the rootfs) needs API 26.
         minSdk = 26
-        // Target 28 like Termux, so the API 29+ exec restriction on app-private
-        // files does not apply to binaries inside the rootfs.
-        targetSdk = 28
+        // Remote control and pet overlay do not need the local exec exemption.
+        targetSdk = 34
         versionCode = flutter.versionCode.takeIf { it > 1 } ?: buildMinuteVersionCode()
         versionName = flutter.versionName
     }
@@ -124,7 +123,7 @@ android {
     }
 
     lint {
-        // targetSdk 28 is deliberate (see docs/architecture.md); not a Play build.
+        // targetSdk 34 is deliberate after removing the local runtime.
         disable += "ExpiredTargetSdkVersion"
     }
 

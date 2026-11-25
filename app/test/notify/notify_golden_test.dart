@@ -16,7 +16,8 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../chat/support/harness.dart';
+import '../support/app_harness.dart';
+import '../support/test_fonts.dart';
 
 class _FixedAlerts extends ChatAlertsController {
   _FixedAlerts(this.alert);

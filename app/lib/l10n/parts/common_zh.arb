@@ -34,7 +34,7 @@
   "commonSaveFailed": "没能保存",
   "commonSaveFailedRetry": "没能保存，请重试",
   "commonFailedTryAgain": "没能完成，再试一次",
-  "commonEngineUnreachable": "没能连上引擎",
+  "commonEngineUnreachable": "没能连上远程主机",
   "commonStorageFull": "存储空间不足",
   "commonConnectionFailed": "连接失败",
   "commonCopyLink": "复制链接",

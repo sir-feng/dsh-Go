@@ -23,7 +23,6 @@ import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.PluginRegistry
-import io.github.ccch1mneyyy.dsh_app.runtime.PhoneStorage
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -281,8 +280,7 @@ class FilesPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandle
     // The phone's output folder
 
     private fun listOutputs(depth: Int): List<Map<String, Any>> {
-        if (!PhoneStorage.isGranted(context)) return emptyList()
-        val hostRoot = PhoneStorage.hostRoot()
+        val shared = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         val out = ArrayList<Map<String, Any>>()
         fun walk(dir: File, level: Int) {
             val children = dir.listFiles() ?: return
@@ -292,15 +290,14 @@ class FilesPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandle
                     if (level < depth) walk(child, level + 1)
                 } else if (child.isFile) {
                     out += mapOf(
-                        "path" to PhoneStorage.GUEST_PATH + child.absolutePath.removePrefix(hostRoot),
+                        "path" to "/sdcard${child.absolutePath.removePrefix(shared.absolutePath.removeSuffix(Environment.DIRECTORY_DOWNLOADS))}",
                         "bytes" to child.length(),
                         "modified" to child.lastModified(),
                     )
                 }
             }
         }
-        // The old folder too: earlier chats' files, and a user's own AGENTS.md that still names it.
-        for (folder in listOf(SUBDIR, LEGACY_SUBDIR)) walk(File(hostRoot, "${Environment.DIRECTORY_DOWNLOADS}/$folder"), 1)
+        for (folder in listOf(SUBDIR, LEGACY_SUBDIR)) walk(File(shared, folder), 1)
         return out.sortedByDescending { it["modified"] as Long }.take(MAX_OUTPUTS)
     }
 

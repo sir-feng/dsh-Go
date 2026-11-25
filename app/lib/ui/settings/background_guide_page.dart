@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
-import '../../runtime/background_net.dart';
 import '../../runtime/background_protection.dart';
 import '../../runtime/runtime_state.dart';
 import '../../state/android_features.dart';
@@ -358,17 +357,16 @@ class _SuspendedPageState extends ConsumerState<_SuspendedPage> {
     final system = ref.watch(notifySystemStatusProvider).value;
     // Unknown (not answered, or it couldn't tell): no value rather than a wrong one.
     final notifications = system == null || !system.native ? null : system.allOpen;
-    final longTask = ref.watch(localRuntimeProvider.select((s) => s.status.longTaskEligible));
     return AppPage.list(
       title: l10n.pluginsBackgroundTitle,
-      subtitle: Text(longTask ? l10n.harmonyBackgroundSubtitleLong : l10n.harmonyBackgroundSubtitle),
+      subtitle: Text(l10n.harmonyBackgroundSubtitle),
       children: [
         SettingsSection(
           title: l10n.harmonyBackgroundAway,
           children: [
             SettingsTile(
               title: l10n.phoneEngineLocal,
-              subtitle: longTask ? l10n.harmonyBackgroundLocalLong : l10n.harmonyBackgroundLocal,
+              subtitle: l10n.harmonyBackgroundLocal,
             ),
             SettingsTile(title: l10n.harmonyBackgroundRemoteTitle, subtitle: l10n.harmonyBackgroundRemote),
           ],

@@ -699,8 +699,8 @@
   "viewGreetingNight": "夜深了",
   "viewEmptySubtitle": "今天想做点什么？",
   "viewEmptyStarting": "正在启动引擎…",
-  "viewEmptyConnecting": "正在连接引擎…",
-  "viewEmptyDisconnected": "引擎未连接",
+  "viewEmptyConnecting": "正在连接远程主机…",
+  "viewEmptyDisconnected": "远程主机未连接",
   "viewEmptyReconnect": "重新连接",
   "viewEmptyWorkspace": "在「{value}」中",
   "@viewEmptyWorkspace": {
@@ -822,7 +822,7 @@
     }
   },
   "viewModelLoadFailed": "模型列表加载失败",
-  "viewModelDisconnected": "未连接引擎",
+  "viewModelDisconnected": "未连接远程主机",
   "viewModelConnectHint": "连接后即可选择模型",
   "viewModelEffort": "思考深度",
   "viewModelKeyRequired": "需要 API Key",

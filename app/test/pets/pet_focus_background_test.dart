@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../chat/support/harness.dart' show FakeChatController;
+import '../support/app_harness.dart' show FakeChatController;
 
 class _Prefs extends PetPrefsController {
   @override
@@ -58,7 +58,16 @@ void main() {
     expect(container.read(petFocusProvider)?.sessionId, 'a');
     expect(container.read(petFocusProvider)?.running, isTrue);
 
-    addTearDown(() => tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed));
+    addTearDown(() async {
+      // The test body ends in `paused`; the framework allows paused → inactive
+      // → resumed, so that is the path used to bring the binding back.
+      for (final state in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+      }
+    });
     for (final state in [AppLifecycleState.inactive, AppLifecycleState.hidden, AppLifecycleState.paused]) {
       tester.binding.handleAppLifecycleStateChanged(state);
     }

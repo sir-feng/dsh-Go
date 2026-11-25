@@ -16,7 +16,7 @@ import '../../pets/overlay_channel.dart';
 import '../../pets/pet_prefs.dart';
 import '../common/expand_reveal.dart';
 import '../common/risk_notice.dart';
-import '../phone/restricted_settings_guide.dart';
+import 'restricted_settings_guide.dart';
 import '../settings/settings_widgets.dart';
 
 /// 「App 外显示」. Nothing without the native side (tests, desktop).
@@ -83,11 +83,9 @@ class _PetOverlaySettingsSectionState extends ConsumerState<PetOverlaySettingsSe
           SettingsTile(
             title: l10n.botsPetSwitchDisabled,
             value: Text(l10n.botsPetRestrictedSettings),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const RestrictedSettingsGuidePage(target: RestrictedTarget.overlay),
-              ),
-            ),
+            onTap: () =>
+                Navigator.of(context)
+                    .push(MaterialPageRoute<void>(builder: (_) => const RestrictedSettingsGuidePage())),
           ),
         if (on && s.snoozed)
           SettingsTile(

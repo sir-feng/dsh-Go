@@ -25,16 +25,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../pets/overlay_channel.dart';
 import '../pets/pet_prefs.dart';
-import '../runtime/background_net.dart' show backgroundSettingsProvider;
-import '../runtime/runtime_bridge.dart' show RuntimePhase;
 import '../runtime/runtime_state.dart';
 import '../ui/chat/voice/voice_bridge.dart' show VoicePermission;
 import 'android_features.dart';
-import 'engine_control.dart';
 import 'notify_state.dart';
-import 'phone_state.dart';
 import 'settings_state.dart';
-import 'system_actions_state.dart';
 import 'voice_model_state.dart' show VoiceModelController, voiceModelDefaultBytes;
 import 'voice_state.dart';
 
@@ -50,19 +45,17 @@ const onboardingWantsVoiceKey = VoiceModelController.onboardingKey;
 
 /// What a person picks on first run: things DSH Go does, not permission names.
 /// What [os] offers is [accessFeaturesFor]'s, never all of these.
-enum AccessFeature { files, pet, phone, background, voice, alerts, systemActions }
+enum AccessFeature { files, pet, background, voice, alerts }
 
 /// What first run and 系统权限 offer on [os], in their order. HarmonyOS and iOS
 /// have only what works there: their files and windows over other apps aren't
 /// reachable, and nothing keeps a turn running in the background (后台运行 says
-/// so), which leaves notifications their own feature. HarmonyOS reaches the
-/// phone only through 系统操作, which needs no permission of its own.
+/// so), which leaves notifications their own feature.
 List<AccessFeature> accessFeaturesFor(String os) => switch (os) {
-  'ohos' => const [AccessFeature.alerts, AccessFeature.systemActions, AccessFeature.voice],
+  'ohos' => const [AccessFeature.alerts, AccessFeature.voice],
   _ when androidSystemFeaturesOn(os) => const [
     AccessFeature.files,
     AccessFeature.pet,
-    AccessFeature.phone,
     AccessFeature.background,
     AccessFeature.voice,
   ],
@@ -84,7 +77,6 @@ enum AccessItem {
   battery,
   vendorBackground,
   autostart,
-  accessibility,
   popup,
   overlay;
 
@@ -142,7 +134,6 @@ List<AccessItem> accessItemsFor(AccessFeature feature, String? vendor) {
   final items = switch (feature) {
     AccessFeature.files => [AccessItem.storage],
     AccessFeature.pet => [AccessItem.overlay],
-    AccessFeature.phone => [AccessItem.accessibility, AccessItem.notifications, AccessItem.popup],
     AccessFeature.background => [
       AccessItem.notifications,
       AccessItem.battery,
@@ -151,7 +142,6 @@ List<AccessItem> accessItemsFor(AccessFeature feature, String? vendor) {
     ],
     AccessFeature.voice => [AccessItem.mic],
     AccessFeature.alerts => [AccessItem.notifications],
-    AccessFeature.systemActions => <AccessItem>[],
   };
   return [
     for (final item in AccessItem.values)
@@ -178,13 +168,9 @@ class AccessReadings {
     this.storage,
     this.notifications,
     this.battery,
-    this.accessibility,
     this.overlay,
     this.overlayBlocked = false,
-    this.restricted,
     this.sdk,
-    this.manufacturer,
-    this.sideloaded,
     this.metered,
   });
 
@@ -197,19 +183,16 @@ class AccessReadings {
   final bool? storage;
   final bool? notifications;
   final bool? battery;
-  final bool? accessibility;
 
-  /// The pet can be drawn over other apps (the permission, or accessibility).
+  /// The pet can be drawn over other apps (the permission).
   final bool? overlay;
 
   /// The system says the overlay is allowed but the window was refused: a
   /// maker's own floating-window switch (vivo), on the app's details page.
   final bool overlayBlocked;
 
-  final RestrictedSettingsState? restricted;
+  /// The platform SDK level, for the overlay's greyed-switch check.
   final int? sdk;
-  final String? manufacturer;
-  final bool? sideloaded;
 
   /// On mobile data (a download costs the person).
   final bool? metered;
@@ -219,14 +202,9 @@ class AccessReadings {
     AccessItem.storage => storage,
     AccessItem.notifications => notifications,
     AccessItem.battery => battery,
-    AccessItem.accessibility => accessibility,
     AccessItem.overlay => overlay,
     AccessItem.vendorBackground || AccessItem.autostart || AccessItem.popup => null,
   };
-
-  /// Android's 「受限制的设置」 may stand in front of the accessibility switch.
-  bool get mayNeedRestricted =>
-      PhoneDevice(sdkInt: sdk, sideloaded: sideloaded, restricted: restricted).mayNeedRestrictedSettings;
 }
 
 /// [item]'s state from [readings]; null when this phone can't tell (the
@@ -241,26 +219,6 @@ AccessState? accessStateOf(AccessItem item, AccessReadings readings, Set<AccessI
   };
 }
 
-/// The step of 「先允许受限制的设置」 the accessibility page is on, 1-based
-/// (1 tap the greyed switch once, 2 allow it on App info, 3 turn it on);
-/// null when nothing stands in front of the switch.
-///
-/// Read from the system when it says ([state]); otherwise, on a phone where
-/// it may apply, only after a trip to Accessibility came back without the
-/// switch on ([tried]) — that trip was step 1.
-int? restrictedStep({
-  required RestrictedSettingsState? state,
-  required bool mayNeed,
-  required bool tried,
-  required bool wasRestricted,
-  required bool appInfoVisited,
-}) => switch (state) {
-  RestrictedSettingsState.guarded => 1,
-  RestrictedSettingsState.acknowledged => 2,
-  RestrictedSettingsState.clear => wasRestricted ? 3 : null,
-  null => !mayNeed || !tried ? null : (appInfoVisited ? 3 : 2),
-};
-
 // ── Reading and opening ─────────────────────────────────────────────────────
 
 /// Reads every item and opens where each is turned on.
@@ -271,9 +229,6 @@ abstract class AccessDriver {
   /// denial goes to the page a dialog can no longer be raised from. False
   /// when nothing opened.
   Future<bool> open(AccessItem item, {bool again = false});
-
-  /// This app's system info page (「允许受限制的设置」).
-  Future<bool> openAppInfo();
 }
 
 /// The real phone: the same channels the features use.
@@ -319,7 +274,6 @@ class SystemAccessDriver implements AccessDriver {
       return readings;
     }
     final bridge = ref.read(runtimeBridgeProvider);
-    final phone = ref.read(phoneProvider.notifier);
     final pet = ref.read(petOverlayProvider.notifier);
     final info = _safe(() => ref.read(backgroundSettingsProvider.future));
     final mic = _readMic();
@@ -327,13 +281,8 @@ class SystemAccessDriver implements AccessDriver {
     final notify = _readNotifications();
     final battery = _safe(bridge.batteryExempt);
     final metered = _safe(bridge.networkMetered);
-    final phoneRead = _safe(() async {
-      await phone.refreshStatus();
-      return true;
-    });
     final overlay = _safe(pet.refresh);
-    await phoneRead;
-    final status = ref.read(phoneProvider).status;
+    await overlay;
     final petStatus = await overlay;
     final settings = await info;
     // Keep the pages that show the same facts in step.
@@ -346,13 +295,9 @@ class SystemAccessDriver implements AccessDriver {
       storage: await storage,
       notifications: await notify,
       battery: await battery,
-      accessibility: status.ready ? status.a11y.enabled : null,
       overlay: petStatus == null || !petStatus.native ? null : petStatus.permission.usable,
       overlayBlocked: petStatus?.permission == PetOverlayPermission.blocked,
-      restricted: status.device.restricted,
-      sdk: status.device.sdkInt ?? (petStatus?.sdk == 0 ? null : petStatus?.sdk),
-      manufacturer: status.device.manufacturer,
-      sideloaded: status.device.sideloaded,
+      sdk: petStatus?.sdk == 0 ? null : petStatus?.sdk,
       metered: await metered,
     );
   }
@@ -372,8 +317,6 @@ class SystemAccessDriver implements AccessDriver {
           if (access.granted) return true;
           // The device ignores legacy storage: 「所有文件访问」 is the way.
           if (access.permission && !access.legacy) return bridge.openAllFilesAccess();
-          // Denied again: the dialog won't come back, the app's page will.
-          if (again) return ref.read(phoneProvider.notifier).openAppDetails();
           return true;
         case AccessItem.notifications:
           final notify = ref.read(notifyChannelProvider);
@@ -386,8 +329,6 @@ class SystemAccessDriver implements AccessDriver {
           return await bridge.requestBatteryExempt() ?? false;
         case AccessItem.vendorBackground || AccessItem.autostart || AccessItem.popup:
           return await bridge.openVendorSettings(item.vendorWire!) != null;
-        case AccessItem.accessibility:
-          return ref.read(phoneProvider.notifier).openAccessibilitySettings();
         case AccessItem.overlay:
           // On with it: the pet is what the permission is for. A vivo switch the
           // system doesn't report opens the app's page instead.
@@ -397,9 +338,6 @@ class SystemAccessDriver implements AccessDriver {
     });
     return opened ?? false;
   }
-
-  @override
-  Future<bool> openAppInfo() async => await _safe(ref.read(phoneProvider.notifier).openAppDetails) ?? false;
 }
 
 final accessDriverProvider = Provider<AccessDriver>((ref) => SystemAccessDriver(ref));
@@ -527,10 +465,8 @@ class AccessSetupController extends Notifier<AccessSetup> {
 
   /// 「开启所选」: the walk starts, and the voice answer is written for the
   /// voice feature to pick up (never yes where there is no model to fetch,
-  /// [accessVoiceDownloads]). [phoneMode], picked with 手机操控, goes to the
-  /// phone's policies now, or as soon as they can be written
-  /// ([PhoneController.chooseConfirmMode]).
-  Future<void> choose(Set<AccessFeature> features, {PhoneConfirmMode? phoneMode}) async {
+  /// [accessVoiceDownloads]).
+  Future<void> choose(Set<AccessFeature> features) async {
     state = AccessSetup(loaded: true, features: {...features});
     await _save();
     try {
@@ -538,13 +474,6 @@ class AccessSetupController extends Notifier<AccessSetup> {
       final os = ref.read(operatingSystemProvider);
       await prefs.setBool(onboardingWantsVoiceKey, features.contains(AccessFeature.voice) && accessVoiceDownloads(os));
     } catch (_) {}
-    if (phoneMode != null && features.contains(AccessFeature.phone)) {
-      try {
-        await ref.read(phoneProvider.notifier).chooseConfirmMode(phoneMode);
-      } catch (_) {
-        // Kept pending: the next read of the policies writes it.
-      }
-    }
   }
 
   Future<void> skip(AccessItem item) async {
@@ -588,28 +517,10 @@ class AccessSetupController extends Notifier<AccessSetup> {
       }
     }
 
-    var restart = false;
     if (features.contains(AccessFeature.files) &&
         readings.storage == true &&
         !ref.read(settingsProvider).phoneStorage) {
       await attempt(() => ref.read(settingsProvider.notifier).setPhoneStorage(true));
-      restart = true;
-    }
-    var restarting = false;
-    if (features.contains(AccessFeature.phone) && !ref.read(phoneProvider).status.enabled) {
-      restarting = (await attempt(() => ref.read(phoneProvider.notifier).setEnabled(true)))?.restarting ?? false;
-    }
-    if (features.contains(AccessFeature.phone)) {
-      // The pick's 确认方式, if it didn't go in then; still pending after this,
-      // it goes in on the next read of the policies.
-      await attempt(ref.read(phoneProvider.notifier).applyPendingConfirmMode);
-    }
-    if (features.contains(AccessFeature.systemActions)) {
-      await attempt(() => ref.read(systemActionsProvider.notifier).setEnabled(true));
-    }
-    final phase = ref.read(localRuntimeProvider).status.phase;
-    if (restart && !restarting && (phase == RuntimePhase.running || phase == RuntimePhase.starting)) {
-      unawaited(EngineControl.restart(ref.container));
     }
     if (features.contains(AccessFeature.pet)) {
       // The pet itself, or the floating window has nothing to show (a light

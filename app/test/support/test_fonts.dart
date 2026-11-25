@@ -49,10 +49,21 @@ Future<void> loadTestFonts() async {
     'assets/fonts/JetBrainsMono-Italic.ttf',
   ]);
   final fontDir = Platform.environment['DSH_TEST_FONT_DIR'] ?? '/usr/share/fonts/noto-cjk';
-  final cjk = ['$fontDir/NotoSansCJK-Regular.ttc', '$fontDir/NotoSansCJK-Bold.ttc'];
+  // On this machine the CJK family ships as .TTF files with a localised name;
+  // on the CI container they are the .ttc files below. Take whatever exists.
+  final candidates = [
+    '$fontDir/NotoSansCJK-Regular.ttc',
+    '$fontDir/NotoSansCJK-Bold.ttc',
+    '$fontDir/NotoSansCJK-Light.ttc',
+    '$fontDir/NotoSansCJKKR.TTF',
+  ]
+      .where((path) => File(path).existsSync())
+      .toList();
+  final cjk = candidates;
+  if (cjk.isEmpty) throw StateError('No CJK font found in $fontDir');
   // The display sizes are w300: the light face, as on ROMs whose system sans
   // has one.
-  final sans = ['$fontDir/NotoSansCJK-Light.ttc', ...cjk];
+  final sans = cjk;
   await family(sansFamily, sans);
   await family(cjkFamily, sans);
   // `AppType.mono` falls back through `monospace` and `Noto Sans Mono CJK SC`

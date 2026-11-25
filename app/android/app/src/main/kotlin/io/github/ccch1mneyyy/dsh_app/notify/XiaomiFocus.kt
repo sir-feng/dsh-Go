@@ -8,8 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.provider.Settings
-import io.github.ccch1mneyyy.dsh_app.phone.Json
-import io.github.ccch1mneyyy.dsh_app.runtime.VendorSettings
+import io.github.ccch1mneyyy.dsh_app.pet.PetJson
 
 /**
  * HyperOS 焦点通知 / 超级岛: the live activity's notification with a `miui.focus.param` template
@@ -46,7 +45,7 @@ object XiaomiFocus {
         var title = c.title
         var text = c.text
         while (true) {
-            val json = Json.write(template(c, word, title, text))
+            val json = PetJson.write(template(c, word, title, text))
             if (json.toByteArray(Charsets.UTF_8).size <= PARAM_MAX_BYTES || (title.length <= 8 && text.isEmpty())) return json
             if (text.isNotEmpty()) text = text.take(text.length / 2) else title = title.take(title.length / 2)
         }
@@ -103,7 +102,7 @@ object XiaomiFocus {
 
     /** 1: HyperOS 1, 2: HyperOS 2, 3: HyperOS 3 (超级岛); 0 elsewhere. */
     fun protocol(context: Context): Int {
-        if (VendorSettings.vendorOf(Build.MANUFACTURER, Build.BRAND) != VendorSettings.XIAOMI) return 0
+        if (!Build.MANUFACTURER.equals("Xiaomi", ignoreCase = true)) return 0
         return runCatching { Settings.System.getInt(context.contentResolver, PROTOCOL_SETTING, 0) }.getOrDefault(0)
     }
 

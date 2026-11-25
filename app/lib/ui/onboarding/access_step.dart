@@ -82,8 +82,7 @@ class _AccessStepPageState extends ConsumerState<AccessStepPage> {
       // The pick needs nothing from the phone (mobile data, if known, shows when read).
       page = AccessPickPage(
         key: const ValueKey('pick'),
-        onPicked: (picked, phoneMode) =>
-            unawaited(ref.read(accessSetupProvider.notifier).choose(picked, phoneMode: phoneMode)),
+        onPicked: (picked) => unawaited(ref.read(accessSetupProvider.notifier).choose(picked)),
         onSkip: widget.onDone,
       );
     } else if (features == null || readings == null) {

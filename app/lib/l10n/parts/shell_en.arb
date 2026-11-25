@@ -15,7 +15,7 @@
   "shellApiKeyEncrypted": "Encrypted on this phone",
   "shellGetApiKey": "Get API key",
   "shellConnectDeepSeek": "Connect DeepSeek",
-  "shellConnectDeepSeekMessage": "Sign in to DeepSeek to start. No API key needed.",
+  "shellConnectDeepSeekMessage": "Enter an API key to start.",
   "shellAccountSignInUnsupported": "This engine doesn’t support account sign-in",
   "shellSignInDeepSeek": "Sign in with DeepSeek",
   "shellUseApiKey": "Use API key",

@@ -8,8 +8,6 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../runtime/runtime_bridge.dart';
-import '../runtime/runtime_state.dart';
 import '../state/connection_state.dart';
 import 'diagnostics_bundle.dart';
 import 'diagnostics_markdown.dart';
@@ -118,10 +116,6 @@ final diagnosticsPublisherProvider = Provider<DiagnosticsPublisher>((ref) {
   }
 
   (Object?, Object?)? requested;
-  var engineRun = Object();
-  ref.listen(localRuntimeProvider.select((runtime) => runtime.status.phase), (previous, next) {
-    if (previous != next) engineRun = Object();
-  });
   Future<DiagnosticsSnapshot> collect(DateTime at, {bool includeSystemIme = false}) {
     // Both collection paths advance the observed key at collection start, never
     // after an await: connection changes during either path still queue a refresh.
@@ -135,7 +129,7 @@ final diagnosticsPublisherProvider = Provider<DiagnosticsPublisher>((ref) {
   );
   DiagnosticsPublisher.channel.setMethodCallHandler((call) async {
     if (call.method != 'refreshDiagnostics') throw MissingPluginException();
-    if (!ref.mounted || ref.read(localRuntimeProvider).status.phase != RuntimePhase.running) return false;
+    if (!ref.mounted) return false;
     // A concurrent manual IME publication is not an AI tool refresh. Try one
     // ordinary collection after it; do not mislabel a second manual one as fresh.
     var result = await publisher.publish();
@@ -145,21 +139,13 @@ final diagnosticsPublisherProvider = Provider<DiagnosticsPublisher>((ref) {
   Timer? refresh;
   void refreshObserved() {
     refresh = null;
-    if (!ref.mounted || requested == null || ref.read(localRuntimeProvider).status.phase != RuntimePhase.running) {
+    if (!ref.mounted || requested == null) {
       return;
     }
     final next = key();
     if (next == requested) return;
     requested = next;
-    final owner = engineRun;
-    publisher
-        .publish(
-          isCurrent: () =>
-              ref.mounted &&
-              identical(owner, engineRun) &&
-              ref.read(localRuntimeProvider).status.phase == RuntimePhase.running,
-        )
-        .ignore();
+    publisher.publish().ignore();
   }
 
   final changes = connection.changes.listen((_) {

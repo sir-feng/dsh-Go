@@ -1,4 +1,4 @@
-// What DSH Go sends and pulls over DSH Remote, flow by flow: the real home
+﻿// What DSH Go sends and pulls over DSH Remote, flow by flow: the real home
 // shell and chat screen on a relay Host, with a metered fake tunnel under
 // the client (fake_host.dart) and fake time. Each test prints its traffic
 // (`TRAFFIC <flow>`) and pins what must not come back:
@@ -12,8 +12,6 @@
 //   (chat_state.dart) and takes them up again on return.
 import 'dart:async';
 
-import 'package:dsh_app/runtime/runtime_bridge.dart';
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/chat_state.dart';
 import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
@@ -82,9 +80,6 @@ Future<_App> _open(WidgetTester tester) async {
       brightness: Brightness.light,
       home: const HomeShell(),
       overrides: [
-        localRuntimeProvider.overrideWith(
-          () => FakeRuntime(const LocalRuntimeState(loaded: true, status: RuntimeStatus(phase: RuntimePhase.notInstalled))),
-        ),
         relayBackendProvider.overrideWithValue(backend),
         networkKicksProvider.overrideWithValue(kicks.stream),
       ],

@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../chat/support/harness.dart';
+import '../support/app_harness.dart';
 
 /// A failed model whose events the test sends; the network kind can change.
 class _FailedModel extends VoiceModelController {

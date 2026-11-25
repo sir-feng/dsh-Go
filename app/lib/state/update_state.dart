@@ -15,7 +15,6 @@ import '../update/release.dart';
 import '../update/update_config.dart';
 import '../update/update_http.dart';
 import '../update/version.dart';
-import '../usage/usage_net.dart' show UsageDeviceChannel;
 import 'android_features.dart' show operatingSystemProvider;
 import 'app_info.dart';
 import 'artifacts.dart';
@@ -543,14 +542,15 @@ class AppUpdateController extends Notifier<AppUpdateState> {
   Future<void> _loadNotice(SharedPreferences prefs) async {
     var current = state.current;
     try {
-      // Device facts only: this does not start the usage statistics controller.
-      final device = await const UsageDeviceChannel().read();
-      final version = AppVersion.tryParse(device.app);
+      // Device facts only: read the installed app's version directly.
+      final app = await _installer.installedApp();
+      final version = AppVersion.tryParse(app?.versionName);
       if (version != null) {
         // The existing channel uses zero when the native versionCode is absent.
         // Keep the compiled build on that fallback instead of inventing build 0.
-        current = device.build > 0
-            ? version.withBuild(device.build)
+        final code = app?.versionCode;
+        current = code != null && code > 0
+            ? version.withBuild(code)
             : version.name == current.name ? current : version;
       }
     } catch (_) {

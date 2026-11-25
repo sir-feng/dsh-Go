@@ -598,8 +598,11 @@ void main() {
       await expectLater(library.install(input), throwsA(isA<PetImportException>()));
       expect(kept.readAsBytesSync(), before);
       expect(
-        Directory('${temp.path}/library').listSync().where((e) => e.uri.pathSegments.any((s) => s.startsWith('.'))),
+        Directory('${temp.path}/library')
+            .listSync()
+            .where((e) => e.uri.pathSegments.last != result.id && e.uri.pathSegments.any((s) => s.startsWith('.'))),
         isEmpty,
+        reason: 'no temporary directory is left behind alongside the installed pack',
       );
       final pack = await library.load(result.id);
       expect(pack.animations['waiting']!.frames.first.i, 48);

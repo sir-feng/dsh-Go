@@ -15,7 +15,6 @@ Map<String, Object?> diagnosticsAnalysisFacts(DiagnosticsSnapshot s) {
   Map<String, Object?> fields(Map<String, Object?> source, List<String> keys) => {
     for (final key in keys) key: ?fact(source[key]),
   };
-  final failure = s.status.failure;
   return {
     'generatedAt': s.at.toUtc().toIso8601String(),
     'app': fields(s.native.app, ['versionName', 'versionCode', 'abi']),
@@ -28,16 +27,6 @@ Map<String, Object?> diagnosticsAnalysisFacts(DiagnosticsSnapshot s) {
       'osVersion',
       'apiVersion',
     ]),
-    'runtime': {
-      'phase': s.status.phase.name,
-      'mode': s.status.mode.name,
-      if (failure != null)
-        'failure': {
-          'at': failure.at.toUtc().toIso8601String(),
-          'kind': failure.kind.name,
-          'exitCode': failure.exitCode,
-        },
-    },
     'evidence': diagnosticEvidenceFacts(s.native.evidence),
   };
 }
@@ -62,8 +51,6 @@ Map<String, String> diagnosticsSections(DiagnosticsSnapshot s) {
       'availability': (evidence['availability'] as Map?)?['voiceStages'] ?? 'unavailable',
       'voiceStages': evidence['voiceStages'] ?? const [],
     }),
-    'engine': _boundedLog(s.engineLog, at),
-    'failure': _boundedLog(s.failureLog, at),
   };
 }
 
@@ -90,26 +77,4 @@ bool _dropOldest(Object? value) {
     return true;
   }
   return false;
-}
-
-String _boundedLog(List<String> lines, String at) {
-  final retained = <String>[];
-  var bytes = 0;
-  var truncated = false;
-  // A fixed line count also bounds redaction work on old engine output.
-  for (final line in lines.reversed.take(200)) {
-    final redacted = redactDiagnostics(line);
-    final size = utf8.encode(redacted).length + 1;
-    if (bytes + size > diagnosticsSectionBytes - 1024) {
-      truncated = true;
-      break;
-    }
-    retained.add(redacted);
-    bytes += size;
-  }
-  return _boundedJson({
-    'generatedAt': at,
-    'truncated': truncated || retained.length < lines.length,
-    'lines': retained.reversed.toList(),
-  });
 }

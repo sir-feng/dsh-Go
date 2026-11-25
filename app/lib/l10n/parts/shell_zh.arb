@@ -15,7 +15,7 @@
   "shellApiKeyEncrypted": "加密保存在本机",
   "shellGetApiKey": "获取 API Key",
   "shellConnectDeepSeek": "连接 DeepSeek",
-  "shellConnectDeepSeekMessage": "登录 DeepSeek 账号即可开始，无需 API Key",
+  "shellConnectDeepSeekMessage": "输入 API Key 即可开始",
   "shellAccountSignInUnsupported": "当前引擎不支持账号登录",
   "shellSignInDeepSeek": "用 DeepSeek 账号登录",
   "shellUseApiKey": "使用 API Key",

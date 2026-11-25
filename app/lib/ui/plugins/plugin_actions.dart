@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
-import '../../state/engine_control.dart';
 import '../../state/hosts_state.dart';
 import '../../state/plugins_state.dart';
 import '../common/app_dialog.dart';
@@ -196,11 +195,6 @@ Future<void> offerEngineRestart(BuildContext context, ProviderContainer containe
     ),
   );
   if (restart != true) return;
-  try {
-    if (await EngineControl.restart(container)) return;
-  } on Object {
-    // Native start/stop errors need the same visible failure as a stop timeout.
-  }
   if (!context.mounted) return;
   await showAppDialog<void>(
     context: context,
@@ -514,14 +508,7 @@ Future<bool> removePluginBundle(BuildContext context, PluginBundle bundle, {Rout
                 : l10n.pluginsUninstalledRestartRemote(title, host.label),
           ),
           persist: false,
-          action: local
-              ? SnackBarAction(
-                  label: l10n.pluginsRestartNow,
-                  onPressed: () {
-                    if (owned()) unawaited(EngineControl.restart(container));
-                  },
-                )
-              : null,
+          action: null,
         ),
       );
       return true;
@@ -562,12 +549,7 @@ Future<void> togglePluginBundle(BuildContext context, PluginBundle bundle, bool 
                         : l10n.pluginsDisabledRestartRemote(host!.label)),
             ),
             persist: false,
-            action: local
-                ? SnackBarAction(
-                    label: l10n.pluginsRestartNow,
-                    onPressed: () => unawaited(EngineControl.restart(container)),
-                  )
-                : null,
+            action: null,
           ),
         );
     }

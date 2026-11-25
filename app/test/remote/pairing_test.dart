@@ -11,8 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../account/support.dart' show FixedAccount;
-import '../chat/support/harness.dart';
+import '../support/app_harness.dart' show FixedAccount, testApp, usePhoneView;
 
 const _code = 'https://dsh.r2049.cn/pair#v1.AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8';
 const _fingerprint = '0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0';

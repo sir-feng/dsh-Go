@@ -8,10 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
-import '../../runtime/runtime_bridge.dart';
-import '../../runtime/runtime_state.dart';
 import '../../share_code/guest_fs.dart';
-import '../../state/engine_control.dart';
 import '../../state/hosts_state.dart';
 import '../../state/settings_state.dart';
 import '../features/agent_presets_page.dart';
@@ -36,24 +33,9 @@ class PersonalizationPage extends ConsumerWidget {
   void _push(BuildContext context, Widget page) =>
       Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
 
-  /// The engine reads its instructions at launch, so the switch takes effect on
-  /// the next start; offer one now rather than restarting behind the user's back.
+  /// The remote host applies reply presentation on its next turn.
   Future<void> _onVisualReplies(BuildContext context, WidgetRef ref, bool next) async {
     await ref.read(settingsProvider.notifier).setVisualReplies(next);
-    if (!context.mounted || ref.read(localRuntimeProvider).status.phase != RuntimePhase.running) return;
-    final container = ProviderScope.containerOf(context, listen: false);
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(context.l10n.hubSettingsRestartRequired),
-          persist: false,
-          action: SnackBarAction(
-            label: context.l10n.hubSettingsRestartNow,
-            onPressed: () => unawaited(EngineControl.restart(container)),
-          ),
-        ),
-      );
   }
 
   @override

@@ -66,9 +66,10 @@ class BotsPage extends ConsumerWidget {
 String _summary(DsBotStatus status) {
   final team = status.team;
   if (!status.ready || team == null) return status.hostLabel;
+  final shown = team.bots.where((bot) => !bot.hidden || team.isMain(bot.id)).length;
   return [
     status.hostLabel,
-    appL10n.botsBotCount(team.bots.length),
+    appL10n.botsBotCount(shown),
     if (team.rooms.isNotEmpty) appL10n.botsRoomCount(team.rooms.length),
   ].join(' · ');
 }
@@ -89,7 +90,9 @@ class _Team extends ConsumerWidget {
     final mains = [for (final id in team.mainBotIds) ?team.bot(id)];
     final others = [
       for (final bot in team.bots)
-        if (!team.isMain(bot.id)) bot,
+        // Hidden on the desktop stays off the phone list too; the main Bot
+        // always shows (the desktop's own rule).
+        if (!team.isMain(bot.id) && !bot.hidden) bot,
     ]..sort((a, b) => newest(latest(a.id) ?? a.createdAt, latest(b.id) ?? b.createdAt));
     final rooms = [...team.rooms]..sort((a, b) => newest(latest(a.id) ?? a.createdAt, latest(b.id) ?? b.createdAt));
     var index = 0;

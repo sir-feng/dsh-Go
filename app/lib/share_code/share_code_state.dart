@@ -47,7 +47,10 @@ String? _codeOf(String fileText) {
 final importTargetsProvider = Provider.autoDispose<List<ImportTarget>>((ref) {
   final local = ref.watch(localConnectionProvider).value;
   final active = ref.watch(activeConnectionProvider).value;
-  final safeMode = ref.watch(localSafeModeProvider);
+  // The on-device engine's safe mode is gone with the runtime; the local
+  // import target only exists while a local connection does, which this build
+  // never has.
+  final safeMode = false;
   // The capability is the active engine's; HarmonyOS's own refuses whichever is active.
   final ohos = ref.watch(operatingSystemProvider) == 'ohos';
   final refused = ohos && ref.watch(marketInstallRefusedProvider);

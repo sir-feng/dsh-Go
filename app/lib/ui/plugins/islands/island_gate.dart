@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../plugins/seams/seat_state.dart' show seatRouteGuardReportProvider;
 import '../../../remote/ssh/ssh_link.dart';
-import '../../../runtime/runtime_state.dart';
 import '../../../state/connection_state.dart';
 import '../../../state/hosts_state.dart';
 
@@ -82,48 +81,11 @@ final islandRouteGuardReportProvider = Provider.family<bool?, HostRef>(
   (ref, host) => ref.watch(seatRouteGuardReportProvider(host)),
 );
 
-/// The cookieless probe against the on-device engine, rerun per engine
-/// start (a new base URL / token is a new process) and whenever the bridge's
-/// own report changes. An inconclusive answer (the engine still starting,
-/// the bridge's routes not registered yet) is asked again every few seconds
-/// for a minute, instead of keeping islands off until the next restart.
-final localRouteGuardProbeProvider = FutureProvider<RouteGuard>((ref) async {
-  final status = ref.watch(localRuntimeProvider.select((s) => s.status));
-  ref.watch(islandRouteGuardReportProvider(HostRef.local));
-  final base = status.baseUrl;
-  if (!status.isRunning || base == null) return RouteGuard.unknown;
-  final uri = Uri.tryParse(base);
-  if (uri == null) return RouteGuard.unknown;
-  final result = await probeRouteGuard(uri);
-  final process = '$base|${status.token}';
-  if (result == RouteGuard.unknown) {
-    final attempt = (_probeAttempts[process] ?? 0) + 1;
-    _probeAttempts[process] = attempt;
-    if (attempt <= routeGuardProbeRetries) {
-      final timer = Timer(routeGuardProbeRetry, ref.invalidateSelf);
-      ref.onDispose(timer.cancel);
-    }
-  } else {
-    _probeAttempts.remove(process);
-  }
-  return result;
-});
-
-/// Retries of an inconclusive guard probe (per engine process).
-const routeGuardProbeRetries = 12;
-const routeGuardProbeRetry = Duration(seconds: 5);
-final _probeAttempts = <String, int>{};
-
 /// Whether [host] may have islands now.
 final islandHostGateProvider = Provider.family<bool, HostRef>((ref, host) {
-  if (host.kind != HostKind.local) return islandHostAllowed(host.kind);
-  final reported = ref.watch(islandRouteGuardReportProvider(host));
-  // Only probe once the bridge claims a guard (or the override is on).
-  if (reported != true && !islandsWithoutGuard) return false;
-  final probed = islandsWithoutGuard
-      ? RouteGuard.unknown
-      : ref.watch(localRouteGuardProbeProvider).value ?? RouteGuard.unknown;
-  return islandHostAllowed(host.kind, reported: reported, probed: probed, override: islandsWithoutGuard);
+  // The on-device engine (and its route-guard probe) is gone from this build;
+  // only remote hosts carry an island gate now.
+  return islandHostAllowed(host.kind);
 });
 
 /// The DSH Web launch URL for [host]'s islands (same as the 网页版's,
@@ -132,9 +94,8 @@ final islandHostGateProvider = Provider.family<bool, HostRef>((ref, host) {
 final islandHostUrlProvider = Provider.autoDispose.family<Uri?, HostRef>((ref, host) {
   switch (host.kind) {
     case HostKind.local:
-      final status = ref.watch(localRuntimeProvider.select((s) => s.status));
-      if (!status.isRunning || status.baseUrl == null || status.token == null) return null;
-      return islandLaunchUri(status.baseUrl!, status.token!);
+      // The on-device engine is gone from this build; no local launch URL.
+      return null;
     case HostKind.ssh:
       ref.watch(hostLinkStatusProvider(host));
       final link = ref.watch(hostLinkProvider(host));

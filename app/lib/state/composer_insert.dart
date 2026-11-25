@@ -14,7 +14,6 @@ import 'package:flutter/services.dart' show TextEditingValue, TextSelection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/l10n.dart';
-import 'phone_skill_use.dart';
 
 /// The confirmation once the word is in the composer.
 String get composerInsertedText => appL10n.stateComposerInserted;
@@ -22,16 +21,10 @@ String get composerInsertedText => appL10n.stateComposerInserted;
 /// A word waiting for the chat composer.
 @immutable
 class ComposerInsert {
-  const ComposerInsert({required this.token, required this.sessionId, this.skill}) : phoneSkill = null;
+  const ComposerInsert({required this.token, required this.sessionId, this.skill});
 
   /// `/name` for [skill] in [sessionId]'s composer (null: a new conversation).
-  const ComposerInsert.skill(String name, {required this.sessionId}) : token = '/$name', skill = name, phoneSkill = null;
-
-  ComposerInsert.phoneRoute(PreparedPhoneSkill prepared)
-      : token = '', sessionId = prepared.origin.sessionId, skill = null, phoneSkill = prepared;
-
-  /// A route remains in a read-only in-memory card, never in the ordinary draft.
-  final PreparedPhoneSkill? phoneSkill;
+  const ComposerInsert.skill(String name, {required this.sessionId}) : token = '/$name', skill = name;
 
   /// Goes in at the caret as a word of its own.
   final String token;
@@ -46,10 +39,10 @@ class ComposerInsert {
 
   @override
   bool operator ==(Object other) =>
-      other is ComposerInsert && other.token == token && other.sessionId == sessionId && other.skill == skill && identical(other.phoneSkill, phoneSkill);
+      other is ComposerInsert && other.token == token && other.sessionId == sessionId && other.skill == skill;
 
   @override
-  int get hashCode => Object.hash(token, sessionId, skill, phoneSkill);
+  int get hashCode => Object.hash(token, sessionId, skill);
 
   @override
   String toString() => 'ComposerInsert($token → ${sessionId ?? 'new'})';
@@ -59,28 +52,18 @@ class ComposerInsert {
 /// back to the chat; the chat screen applies it and calls [take] (also on its
 /// first frame, when it was asked before it was built).
 class ComposerInsertController extends Notifier<ComposerInsert?> {
-  PreparedPhoneSkill? _awaitingConsumer;
   @override
   ComposerInsert? build() {
-    ref.onDispose(() {
-      final pending = _awaitingConsumer;
-      _awaitingConsumer = null;
-      if (pending != null) unawaited(pending.discard());
-    });
     return null;
   }
 
   void request(ComposerInsert insert) {
-    final old = _awaitingConsumer;
-    if (old != null && !identical(old, insert.phoneSkill)) unawaited(old.discard());
-    _awaitingConsumer = insert.phoneSkill;
     state = insert;
   }
 
   /// The pending insert, once; clears it.
   ComposerInsert? take() {
     final insert = state;
-    _awaitingConsumer = null;
     state = null;
     return insert;
   }

@@ -4,15 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
-import '../../runtime/local_footprint.dart';
-import '../../runtime/runtime_state.dart';
 import '../../state/connection_state.dart';
 import '../../state/hosts_state.dart';
 import '../common/app_sheet.dart';
 import '../common/sheet_title_bar.dart';
 import '../common/status_chip.dart';
 import '../companion/companion_page.dart';
-import '../onboarding/local_install.dart';
 import '../settings/settings_widgets.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
@@ -97,17 +94,7 @@ class HostSheet extends ConsumerWidget {
       if (ok && navigator.mounted) navigator.pop();
     }
 
-    // 本机 without its runtime: the row installs it, and switches to it once
-    // installed (leaving the install page keeps the current host). A build
-    // without the runtime has no 本机 row at all.
-    final localMissing = ref.watch(localRuntimeProvider.select((s) => s.status.runtimeMissing));
-    final localAvailable = ref.watch(localRuntimeProvider.select((s) => s.available));
-    void installLocal() {
-      final navigator = Navigator.of(context);
-      navigator.pop();
-      unawaited(navigator.push(MaterialPageRoute<void>(builder: (_) => const LocalInstallPage(useWhenDone: true))));
-    }
-
+    // No local runtime row remains.
     return SafeArea(
       top: false,
       child: ConstrainedBox(
@@ -121,14 +108,6 @@ class HostSheet extends ConsumerWidget {
               SheetGroup(
                 margin: const EdgeInsets.fromLTRB(SheetTitleBar.inset, 0, SheetTitleBar.inset, 12),
                 children: [
-                  if (localAvailable)
-                    _HostRow(
-                      host: HostRef.local,
-                      title: l10n.commonThisPhone,
-                      subtitle: l10n.remoteThisPhoneDsh,
-                      active: active.isLocal,
-                      onTap: localMissing ? installLocal : () => pick(HostRef.local),
-                    ),
                   for (final h in ssh)
                     _HostRow(
                       host: HostRef.ssh(h.id),

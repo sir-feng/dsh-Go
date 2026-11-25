@@ -5,16 +5,45 @@ import 'package:dsh_app/companion/companion_float.dart';
 import 'package:dsh_app/pets/pet_prefs.dart';
 import 'package:dsh_app/ui/common/risk_notice.dart';
 import 'package:dsh_app/ui/pets/overlay_settings_tile.dart';
-import 'package:dsh_app/ui/phone/restricted_settings_guide.dart';
+import 'package:dsh_app/ui/pets/restricted_settings_guide.dart';
 import 'package:dsh_app/ui/settings/settings_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../phone/harness.dart';
-import '../../shell/golden_harness.dart';
+import '../../support/test_fonts.dart';
+import '../support.dart';
 import 'fake_overlay_native.dart';
+
+Future<void> settlePhone(WidgetTester tester) async {
+  for (var i = 0; i < 4; i++) {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+}
+
+Future<void> leaveAndResume(WidgetTester tester) async {
+  for (final state in const [
+    AppLifecycleState.inactive,
+    AppLifecycleState.hidden,
+    AppLifecycleState.paused,
+    AppLifecycleState.hidden,
+    AppLifecycleState.inactive,
+    AppLifecycleState.resumed,
+  ]) {
+    tester.binding.handleAppLifecycleStateChanged(state);
+  }
+  await settlePhone(tester);
+}
+
+Future<void> _pumpGuide(WidgetTester tester, Widget home) async {
+  tester.view.devicePixelRatio = 2;
+  tester.view.physicalSize = const Size(780, 4800);
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(testApp(home));
+  await settlePhone(tester);
+}
 
 Widget _page() => const Scaffold(
   body: SafeArea(child: SingleChildScrollView(child: PetOverlaySettingsSection())),
@@ -44,8 +73,8 @@ Future<void> _pump(
   tester.view.physicalSize = Size(390, height) * 2;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
-    goldenApp(
-      home: _page(),
+    testApp(
+      _page(),
       brightness: brightness,
       overrides: [
         companionFloatAvailabilityProvider.overrideWith((ref) => Stream.value(companionProblem)),
@@ -334,7 +363,7 @@ void main() {
 
   testWidgets('the overlay guide turns the switch on, opens the setting, and says when done', (tester) async {
     final native = FakeOverlayNative()..install();
-    await pumpPhone(tester, const RestrictedSettingsGuidePage(target: RestrictedTarget.overlay));
+    await _pumpGuide(tester, const RestrictedSettingsGuidePage());
     expect(find.text('悬浮窗已开好，可以返回了'), findsNothing);
     await tester.ensureVisible(find.text('去开悬浮窗'));
     await tester.tap(find.text('去开悬浮窗'));
@@ -347,17 +376,10 @@ void main() {
     expect(native.enabled, isTrue);
   });
 
-  testWidgets('the accessibility guide is unchanged', (tester) async {
-    await pumpPhone(tester, const RestrictedSettingsGuidePage());
-    expect(find.text('侧载的 App 要先放行这一项，无障碍开关才点得动'), findsOneWidget);
-    expect(find.text('去开无障碍'), findsOneWidget);
-    expect(find.textContaining('先去「无障碍」里点一次 DSH 的开关'), findsOneWidget);
-  });
-
   for (final brightness in Brightness.values) {
     final mode = brightness == Brightness.dark ? 'dark' : 'light';
     testWidgets('golden: on, 有事时显示, snoozed ($mode)', (tester) async {
-      await tester.runAsync(loadGoldenFonts);
+      await tester.runAsync(loadTestFonts);
       FakeOverlayNative(permission: 'granted', enabled: true, snoozed: true).install();
       await _pump(tester, brightness: brightness);
       await tester.pumpAndSettle();

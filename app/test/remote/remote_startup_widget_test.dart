@@ -1,7 +1,6 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:dsh_app/remote/secret_store.dart';
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/compose_inbox.dart';
 import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
@@ -36,9 +35,6 @@ void main() {
           networkKicksProvider.overrideWithValue(const Stream.empty()),
           relayBackendProvider.overrideWithValue(relay),
           hostLinkStatusProvider.overrideWith((ref, host) => Stream.value(HostLinkStatus.idle)),
-          localRuntimeProvider.overrideWith(
-            () => FakeRuntime(const LocalRuntimeState(loaded: true, status: runningStatus)),
-          ),
         ],
       ),
     );
@@ -47,6 +43,7 @@ void main() {
     final c = ProviderScope.containerOf(tester.element(find.byType(MaterialApp)));
     final tile = find.byKey(const ValueKey('remote-auto-connect'));
     await tester.scrollUntilVisible(tile, 300);
+    await tester.pump();
     final toggle = find.descendant(of: tile, matching: find.byType(Switch));
     expect(tester.widget<Switch>(toggle).value, isTrue);
     await tester.tap(toggle);
@@ -69,9 +66,6 @@ void main() {
           networkKicksProvider.overrideWithValue(const Stream.empty()),
           relayBackendProvider.overrideWithValue(relay),
           hostLinkStatusProvider.overrideWith((ref, host) => Stream.value(HostLinkStatus.idle)),
-          localRuntimeProvider.overrideWith(
-            () => FakeRuntime(const LocalRuntimeState(loaded: true, status: runningStatus)),
-          ),
         ],
       ),
     );
@@ -96,9 +90,6 @@ void main() {
           networkKicksProvider.overrideWithValue(const Stream.empty()),
           relayBackendProvider.overrideWithValue(FakeRelayBackend()),
           hostLinkStatusProvider.overrideWith((ref, host) => Stream.value(HostLinkStatus.idle)),
-          localRuntimeProvider.overrideWith(
-            () => FakeRuntime(const LocalRuntimeState(loaded: true, status: runningStatus)),
-          ),
         ],
       ),
     );

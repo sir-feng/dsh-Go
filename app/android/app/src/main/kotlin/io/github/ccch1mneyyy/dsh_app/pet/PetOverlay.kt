@@ -49,16 +49,11 @@ import android.widget.Toast
 import io.github.ccch1mneyyy.dsh_app.MainActivity
 import io.github.ccch1mneyyy.dsh_app.R
 import io.github.ccch1mneyyy.dsh_app.nativemedia.MicArbiter
-import io.github.ccch1mneyyy.dsh_app.phone.PhoneControl
-import io.github.ccch1mneyyy.dsh_app.phone.a11y.PhoneA11yService
-import io.github.ccch1mneyyy.dsh_app.runtime.DshService
-import io.github.ccch1mneyyy.dsh_app.runtime.RuntimeController
 import io.github.ccch1mneyyy.dsh_app.shortcuts.EntryActivity
 import io.github.ccch1mneyyy.dsh_app.voice.WavRecorder
 import java.util.Calendar
 import java.util.IdentityHashMap
 import java.util.concurrent.Executors
-import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
@@ -151,6 +146,7 @@ internal object PetOverlay {
     private var host = OverlayHost.NONE
     private var hostContext: Context? = null
     private var appWindowContext: Context? = null
+    private var mainActivity: MainActivity? = null // for MediaProjection permission flow
     private var wm: WindowManager? = null
     private var petView: PetView? = null
     private var petParams: WindowManager.LayoutParams? = null
@@ -215,7 +211,6 @@ internal object PetOverlay {
         if (Build.VERSION.SDK_INT >= 33) app.registerReceiver(screen, filter, Context.RECEIVER_NOT_EXPORTED) else app.registerReceiver(screen, filter)
         lastConfig = Configuration(app.resources.configuration)
         app.registerComponentCallbacks(config)
-        RuntimeController.get(app).addSink { event -> if (event["type"] == "status") main.postDelayed(evaluateRunnable, 300) }
         if (app.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0) PetOverlayProbe.register(app)
         machine.onForeground(started > 0, now())
     }
@@ -398,8 +393,8 @@ internal object PetOverlay {
         refreshCanDraw()
         machine.canHost = overlayHost() != OverlayHost.NONE
         machine.hasPet = loaded != null && loadedKey == packKey(machine.last)
-        machine.phoneTask = PhoneControl.peek()?.foregroundLine() != null
-        machine.dshService = DshService.isRunning
+        machine.phoneTask = false // phone control is removed; no phone task can be in flight
+        machine.dshService = false
         machine.interactive = interactive()
         machine.holding = askView != null || menuView != null || answerState.bubbleId != null || returnAsk
         val t = now()
@@ -448,7 +443,7 @@ internal object PetOverlay {
         val poll = d.visibility == Visibility.SHOWN || (machine.phoneTask && machine.enabled && !machine.appForeground)
         val wake = listOfNotNull(
             d.wakeAt?.let { it - t }, if (poll) POLL_MS else null,
-            accessibilityRetry.remaining(PhoneA11yService.instance, t),
+            accessibilityRetry.remaining(null, t),
         ).minOrNull()
         if (wake != null) main.postDelayed(evaluateRunnable, wake.coerceAtLeast(50))
         publishStatus()
@@ -577,11 +572,11 @@ internal object PetOverlay {
 
     // ---- permission -----------------------------------------------------------------------------
 
-    private fun a11yConnected() = PhoneA11yService.instance != null
+    private fun a11yConnected() = false // phone-control accessibility service is removed from this app
 
     private fun overlayHost(): OverlayHost = OverlayAccess.host(
         a11yConnected(), lastAdd,
-        a11yFailed = accessibilityRetry.remaining(PhoneA11yService.instance, now()) != null,
+        a11yFailed = accessibilityRetry.remaining(null, now()) != null,
         canDraw = canDraw(),
     )
 
@@ -798,7 +793,7 @@ internal object PetOverlay {
         val p = petParams ?: return
         val l = loaded ?: return
         if (!alive(petTicket)) return
-        val next = l.frames.frameFor(v.shown, dragging)
+        val next = l.frames.frameFor(v.shown, dragging, v.fadingFrom)
         if (next == v.frame) return
         val rest = restPos(v, p)
         v.setFrame(next)
@@ -853,9 +848,9 @@ internal object PetOverlay {
     private fun attachPet(): Boolean {
         val want = overlayHost()
         if (want == OverlayHost.NONE) return false
-        val service = PhoneA11yService.instance
+        val service: Any? = null // accessibility service is removed from this app; ACCESSIBILITY host is unreachable
         return try {
-            val ctx = if (want == OverlayHost.ACCESSIBILITY) service?.overlayWindowContext() ?: return false else appWindowContext()
+            val ctx = if (want == OverlayHost.ACCESSIBILITY) return false else appWindowContext()
             val current = petView
             if (current != null && host == want && windows.isHost(ctx) && alive(petTicket)) return true
             removeWindows()
@@ -898,7 +893,7 @@ internal object PetOverlay {
                 failedAt = now()
             } else if (service != null) {
                 accessibilityRetry.failed(service, now())
-                service.invalidateOverlayWindowContext()
+                // invalidateOverlayWindowContext was on the accessibility service; removed with phone control.
             }
             host = OverlayHost.NONE
             false
@@ -1068,6 +1063,10 @@ internal object PetOverlay {
     // ---- touch ----------------------------------------------------------------------------------
 
     private fun petListener(ticket: OverlayWindowOwner.Ticket) = object : PetView.Listener {
+        override fun onBlendEnd() {
+            if (alive(ticket)) fitFrame()
+        }
+
         override fun onDragStart() {
             if (!alive(ticket)) return
             val v = petView ?: return
@@ -1638,11 +1637,12 @@ internal object PetOverlay {
         petView?.visibility = View.INVISIBLE
         speaksForResults = false
         publishStatus()
-        PetScreenshot.capture(app) { result ->
+        val activity = mainActivity
+        PetScreenshot.capture(app, activity) { result ->
             val accepted = capture.finish(request) && alive(ticket) && interactive() && machine.enabled &&
                 started == 0 && !machine.appForeground && !machine.snoozed(now()) &&
-                // A phone task that began meanwhile keeps the screen; DSH Go doesn't jump in front of it.
-                PhoneControl.peek()?.foregroundLine() == null
+                // A phone task that began meanwhile keeps the screen; phone control is removed, so none can.
+                true
             val path = result.path
             if (accepted && path != null) {
                 openIntent(EntryActivity.screenshot(app, path), null)
@@ -1650,7 +1650,7 @@ internal object PetOverlay {
                 if (path != null) PetScreenshot.discard(app, path)
                 if (accepted) Toast.makeText(app, AppStrings.get(app, when (result.error) {
                     PetScreenshot.Error.UNSUPPORTED -> R.string.pet_screenshot_unsupported
-                    PetScreenshot.Error.ACCESSIBILITY_REQUIRED -> R.string.pet_screenshot_accessibility
+                    PetScreenshot.Error.CAPTURE_REQUIRED -> R.string.pet_screenshot_accessibility
                     PetScreenshot.Error.SECURE -> R.string.pet_screenshot_secure
                     PetScreenshot.Error.BUSY -> R.string.pet_screenshot_busy
                     PetScreenshot.Error.TIMEOUT -> R.string.pet_screenshot_timeout
@@ -1929,7 +1929,7 @@ internal object PetOverlay {
         val am = app.getSystemService(AudioManager::class.java) ?: return
         val mine = am.activeRecordingConfigurations.filter { it.clientAudioSessionId == r.sessionId }
         val silenced = mine.any { it.isClientSilenced }
-        Log.i(TAG, "pet mic: configs=${mine.size} silenced=$silenced dshService=${DshService.isRunning} petService=${PetOverlayService.running}")
+        Log.i(TAG, "pet mic: configs=${mine.size} silenced=$silenced dshService=false petService=${PetOverlayService.running}")
         if (!silenced) return
         foregroundVoice(view)
     }
@@ -2088,6 +2088,7 @@ internal object PetOverlay {
     private val lifecycle = object : Application.ActivityLifecycleCallbacks {
         override fun onActivityStarted(activity: Activity) {
             if (activity !is MainActivity) return
+            mainActivity = activity
             started++
             capture.invalidate()
             machine.onForeground(true, now())
@@ -2098,6 +2099,7 @@ internal object PetOverlay {
 
         override fun onActivityStopped(activity: Activity) {
             if (activity !is MainActivity) return
+            if (activity === mainActivity) mainActivity = null
             started = (started - 1).coerceAtLeast(0)
             if (started == 0) {
                 machine.onForeground(false, now())

@@ -10,16 +10,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/l10n.dart';
 import '../../state/access_state.dart';
 import '../../state/android_features.dart';
-import '../../state/phone_state.dart';
-import '../../state/system_actions_state.dart';
 import '../common/risk_notice.dart';
 import '../onboarding/onboarding_scaffold.dart';
-import '../phone/phone_disclosure_sheet.dart';
 import '../settings/settings_widgets.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
 import 'access_widgets.dart';
-import 'phone_mode_sheet.dart';
 
 /// ```
 ///   ▣  想让 DSH Go 帮你做哪些事
@@ -47,8 +43,8 @@ import 'phone_mode_sheet.dart';
 class AccessPickPage extends ConsumerStatefulWidget {
   const AccessPickPage({super.key, required this.onPicked, required this.onSkip});
 
-  /// The features, and 手机操控's 确认方式 when it is among them.
-  final void Function(Set<AccessFeature> features, PhoneConfirmMode? phoneMode) onPicked;
+  /// The features picked.
+  final void Function(Set<AccessFeature> features) onPicked;
   final VoidCallback onSkip;
 
   @override
@@ -59,23 +55,15 @@ class _AccessPickPageState extends ConsumerState<AccessPickPage> {
   final _picked = <AccessFeature>{};
   bool _asking = false;
 
-  /// 手机操控's 确认方式, chosen right after its disclosure.
-  PhoneConfirmMode? _phoneMode;
-
   Future<void> _toggle(AccessFeature feature) async {
     if (_asking) return;
     if (_picked.contains(feature)) {
-      if (feature == AccessFeature.phone) _phoneMode = null;
       return setState(() => _picked.remove(feature));
     }
     _asking = true;
     try {
       final bool ok;
-      if (feature == AccessFeature.phone) {
-        ok = await _phoneDisclosure() && await _chooseMode();
-      } else if (feature == AccessFeature.systemActions) {
-        ok = await _systemActionsDisclosure();
-      } else if (feature == AccessFeature.files) {
+      if (feature == AccessFeature.files) {
         ok = await confirmRisk(context, RiskNotices.phoneFilesFirstRun);
       } else {
         ok = true;
@@ -86,30 +74,7 @@ class _AccessPickPageState extends ConsumerState<AccessPickPage> {
     }
   }
 
-  Future<bool> _phoneDisclosure() async {
-    if (ref.read(phoneProvider).disclosureAccepted) return true;
-    if (!await showPhoneDisclosure(context)) return false;
-    await ref.read(phoneProvider.notifier).acceptDisclosure();
-    return true;
-  }
-
-  Future<bool> _systemActionsDisclosure() async {
-    if (ref.read(systemActionsProvider).disclosureAccepted) return true;
-    if (!await showPhoneDisclosure(context, harmony: true)) return false;
-    await ref.read(systemActionsProvider.notifier).acceptDisclosure();
-    return true;
-  }
-
-  /// 关键步骤先问我 / 全程自动, every time 手机操控 is picked: closed without
-  /// one, the box stays empty.
-  Future<bool> _chooseMode() async {
-    if (!mounted) return false;
-    final mode = await showPhoneModeSheet(context);
-    if (mode == null) return false;
-    _phoneMode = mode;
-    return true;
-  }
-
+  // System actions were removed with phone control.
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
@@ -144,9 +109,7 @@ class _AccessPickPageState extends ConsumerState<AccessPickPage> {
         const SizedBox(height: 24),
         AccessActions(
           primary: l10n.accessPickConfirm,
-          onPrimary: _picked.isEmpty
-              ? null
-              : () => widget.onPicked({..._picked}, _picked.contains(AccessFeature.phone) ? _phoneMode : null),
+          onPrimary: _picked.isEmpty ? null : () => widget.onPicked({..._picked}),
           secondary: [(l10n.accessSkip, widget.onSkip)],
         ),
       ],

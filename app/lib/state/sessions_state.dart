@@ -8,7 +8,6 @@ import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../companion/companion_state.dart';
-import '../runtime/runtime_state.dart';
 import 'connection_state.dart';
 import 'hosts_state.dart';
 import '../runtime/local_paths.dart';
@@ -630,10 +629,9 @@ class SessionsController extends AsyncNotifier<List<SessionSummary>> {
       checkCurrent: checkCurrent,
     );
     checkCurrent();
-    // Safe mode keeps the default preset: the agent there repairs the engine
-    // with a full shell already, and every command should still be asked.
-    final safeMode = ref.read(localRuntimeProvider).status.inSafeMode;
-    if (autoApprove && conn.isLocal && !safeMode && ref.read(settingsProvider).autoApproveCommands) {
+    // A local engine no longer exists on this build, so the safe-mode preset
+    // guard (which read the local engine's mode) is gone with it.
+    if (autoApprove && conn.isLocal && ref.read(settingsProvider).autoApproveCommands) {
       try {
         await conn.client.setPermissionPreset(created.sessionId, 'danger-full-access');
       } catch (_) {

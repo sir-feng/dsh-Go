@@ -369,6 +369,7 @@ class DsBot {
     this.createdAt,
     this.createdBy,
     this.workDir,
+    this.hidden = false,
   }) : sessionId = sessionId ?? id;
 
   factory DsBot.fromJson(Object? json) {
@@ -394,6 +395,7 @@ class DsBot {
       createdAt: asEpochMs(map['createdAt']),
       createdBy: asString(map['createdBy']),
       workDir: asString(map['workDir']),
+      hidden: asBool(map['hidden']) ?? false,
     );
   }
 
@@ -427,6 +429,10 @@ class DsBot {
   final DateTime? createdAt;
   final String? createdBy;
   final String? workDir;
+
+  /// The web client's "hide from sidebar" flag (set on the desktop, `set-flags`
+  /// on the Host): the list skips it, group membership is untouched.
+  final bool hidden;
 
   /// The color it shows in: the picked one, else the one its id picks.
   String get ink => dsBotIsColor(color) ? dsBotCurrentColor(color!) : dsBotDefaultColor(id);

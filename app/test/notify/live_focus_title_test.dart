@@ -13,7 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../chat/support/harness.dart' show FakeChatController;
+import '../support/app_harness.dart' show FakeChatController;
 
 const _local = HostRef.local;
 const _target = PetTarget(_local, 'a');

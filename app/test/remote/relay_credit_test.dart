@@ -1,10 +1,9 @@
-// The credit under the DSH Remote card: only the project name opens
+﻿// The credit under the DSH Remote card: only the project name opens
 // github.com/liguobao/ds-harness-remote; its tap area reaches 48dp tall into
 // the empty space around the line and stays clear of every control near it.
 
 import 'package:dsh_app/remote/relay/relay_backend.dart';
 import 'package:dsh_app/remote/secret_store.dart';
-import 'package:dsh_app/runtime/runtime_state.dart';
 import 'package:dsh_app/state/connection_state.dart';
 import 'package:dsh_app/state/hosts_state.dart';
 import 'package:dsh_app/state/star_prompt.dart' show starLinkOpenerProvider;
@@ -64,9 +63,6 @@ void main() {
           networkKicksProvider.overrideWithValue(const Stream.empty()),
           relayBackendProvider.overrideWithValue(relay ?? FakeRelayBackend()),
           hostLinkStatusProvider.overrideWith((ref, host) => Stream.value(HostLinkStatus.idle)),
-          localRuntimeProvider.overrideWith(
-            () => FakeRuntime(const LocalRuntimeState(loaded: true, status: runningStatus)),
-          ),
           starLinkOpenerProvider.overrideWithValue((url) => opener(url)),
           urlOpenerProvider.overrideWithValue((url) async {
             signInPages.add(url);
@@ -227,7 +223,7 @@ void main() {
     final line = lineRect(tester);
     // Card → 8 → the line → the section margin (24) → the next section's title.
     expect(line.top - tester.getRect(card('登录 DSH Remote')).bottom, closeTo(8, 0.01));
-    expect(tester.getRect(find.text('远程传输')).top - line.bottom, closeTo(24, 0.01));
+    expect(tester.getRect(find.text('SSH 主机')).top - line.bottom, closeTo(24, 0.01));
   });
 
   testWidgets('signing in still opens the sign-in page, not the project', (tester) async {

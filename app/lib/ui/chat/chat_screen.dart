@@ -15,9 +15,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
 import '../../notify/chat_alerts.dart' show approvalText, questionText;
-import '../../runtime/local_footprint.dart' show RuntimeMissing;
-import '../../runtime/runtime_bridge.dart' show RuntimePhase;
-import '../../runtime/runtime_state.dart' show localRuntimeProvider;
 import '../../speech/read_aloud.dart';
 import '../../speech/voice_cloud.dart';
 import '../../state/android_features.dart';
@@ -36,12 +33,10 @@ import '../../state/chat_state.dart';
 import '../../state/commands_state.dart';
 import '../../state/compose_inbox.dart';
 import '../../state/composer_insert.dart';
-import '../../state/phone_skill_use.dart';
 import '../../state/composer_quote.dart';
 import '../../state/connection_state.dart';
 import '../../state/draft_store.dart';
 import '../../state/drawer_view_state.dart';
-import '../../state/engine_control.dart';
 import '../../state/engine_settings_state.dart' show engineSettingsProvider;
 import '../../state/features_state.dart' show agentPresetsProvider, permissionStateProvider;
 import '../../state/hosts_state.dart' show HostKind, HostRef, activeHostProvider;
@@ -50,7 +45,6 @@ import '../../state/mention_state.dart';
 import '../../state/models_state.dart';
 import '../../state/new_chat_modes.dart';
 import '../../state/session_search.dart' show folderLabel;
-import '../../state/safe_mode_state.dart';
 import '../../state/session_modes.dart';
 import '../../state/sessions_state.dart';
 import '../../state/settings_state.dart';
@@ -59,7 +53,6 @@ import '../../state/voice_state.dart';
 import '../../state/voice_model_state.dart';
 import '../../state/voice_settings.dart';
 import '../../state/workspaces_state.dart' show selectedWorkspaceProvider, workspaceTitle;
-import '../../usage/usage_stats.dart';
 import '../common/app_sheet.dart';
 import '../common/brief_notice.dart';
 import '../common/fluid_bits.dart';
@@ -69,15 +62,12 @@ import '../common/smooth_size.dart';
 import '../common/status_dot.dart';
 import '../features/all_features_page.dart';
 import '../features/session_export_page.dart';
-import '../onboarding/local_install.dart';
 import '../pets/pet_perch.dart';
 import '../pets/pet_stage.dart';
 import '../plugins/native/composer_strip.dart' show ComposerStripSlot;
 import '../plugins/native/native_composer_bar.dart';
 import '../plugins/native/native_taps.dart' show NativeComposerHost, NativeComposerScope, runNativeAction;
 import '../plugins/seats/plugin_overlay_layer.dart';
-import '../safe_mode/engine_failure_card.dart';
-import '../safe_mode/safe_mode_banner.dart';
 import '../session/session_detail_page.dart';
 import '../settings/media_settings_page.dart' show MediaSettingsPage, showMediaInstallSheet, showMediaUnavailableSheet;
 import '../settings/settings_widgets.dart' show SettingsTile;
@@ -280,51 +270,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   /// The open conversation's id, or `new`.
   late String _draftKey;
 
-  PreparedPhoneSkill? _preparedPhoneSkill;
-  PreparedPhoneSkill? _sendingPhoneSkill;
-  bool get _phoneSkillSending => _sendingPhoneSkill != null;
-
-  void _dropPreparedPhoneSkill() {
-    final prepared = _preparedPhoneSkill;
-    _preparedPhoneSkill = null;
-    // If send is waiting, its final source predicate will reject. If it already
-    // dispatched, only its own completion can report what was accepted.
-    if (prepared != null && !identical(prepared, _sendingPhoneSkill)) unawaited(prepared.discard());
-  }
-
-  bool _phoneSkillCurrent(PreparedPhoneSkill prepared) =>
-      mounted &&
-      identical(_preparedPhoneSkill, prepared) &&
-      prepared.origin.current(ProviderScope.containerOf(context, listen: false));
-
-  Future<void> _sendPhoneSkill() async {
-    final prepared = _preparedPhoneSkill;
-    if (prepared == null || _phoneSkillSending) return;
-    if (!_phoneSkillCurrent(prepared)) {
-      setState(_dropPreparedPhoneSkill);
-      _composerToast(appL10n.phoneSkillReplaySourceChanged);
-      return;
-    }
-    setState(() => _sendingPhoneSkill = prepared);
-    final chat = ref.read(chatProvider(prepared.origin.sessionId).notifier);
-    bool ok = false;
-    try {
-      // No ordinary input, quote or attachments are consumed. Queue rather than
-      // steer an existing turn; the final predicate runs beside client.prompt.
-      ok = await chat.send(prepared.text, mode: SendMode.queue, deliveryAllowed: () => _phoneSkillCurrent(prepared));
-    } finally {
-      if (!ok) unawaited(prepared.discard());
-      if (mounted) {
-        final showReceipt = _phoneSkillCurrent(prepared);
-        setState(() {
-          if (identical(_preparedPhoneSkill, prepared)) _preparedPhoneSkill = null;
-          if (identical(_sendingPhoneSkill, prepared)) _sendingPhoneSkill = null;
-        });
-        if (showReceipt) _composerToast(ok ? appL10n.phoneSkillReplayQueued : appL10n.phoneSkillReplaySendUncertain);
-      }
-    }
-  }
-
   void _saveDraft() => _draftStore.save(_draftKey, _input.text, _drafts);
 
   /// Attachments first: setting the text saves both.
@@ -342,7 +287,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   void _switchDraft(String? sessionId) {
     final key = sessionId ?? 'new';
     if (key == _draftKey) return;
-    _dropPreparedPhoneSkill();
     _draftScope = Object();
     _creating = null;
     _syncWait = null;
@@ -399,9 +343,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       // The capability probe is async and can finish after this page is gone.
       client: () => mounted ? ref.read(activeConnectionProvider).value?.client : null,
       inputOwner: () => mounted ? ref.read(activeHostProvider) : null,
-      onRecognized: () {
-        if (mounted) ref.read(usageStatsProvider.notifier).count(UsageCount.voice);
-      },
+      onRecognized: () {},
     );
     // A download or deletion changes capabilities without replacing the host.
     ref.listenManual(voiceModelProvider.select((s) => s.status == VoiceModelStatus.ready), (_, _) {
@@ -424,7 +366,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       _switchDraft(next);
     });
     ref.listenManual(activeConnectionProvider.select((c) => c.value?.client), (_, _) {
-      _dropPreparedPhoneSkill();
       _draftScope = Object();
       if (_creating != null || _syncWait != null) {
         setState(() {
@@ -443,23 +384,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) ref.read(balanceProvider.notifier).refresh();
       // Asked for from another page before this one was built.
-      if (mounted && ref.read(repairDraftProvider) != null) _takeRepairDraft();
       if (mounted && ref.read(composerInsertProvider) != null) {
         _takeComposerInsert();
       }
       if (mounted && ref.read(readyComposeProvider) != null) _takeCompose();
     });
-  }
-
-  void _takeRepairDraft() {
-    final text = ref.read(repairDraftProvider.notifier).take();
-    if (text == null || !mounted) return;
-    ref.read(currentSessionProvider.notifier).select(null);
-    _input.value = TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
-    );
-    _focus.requestFocus();
   }
 
   /// Skills handed over from 技能: `/name` alone is then a message, never a
@@ -472,19 +401,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   void _takeComposerInsert() {
     final insert = ref.read(composerInsertProvider.notifier).take();
     if (insert == null || !mounted) return;
-    if (insert.phoneSkill case final prepared?) {
-      if (!prepared.origin.current(ProviderScope.containerOf(context, listen: false)) ||
-          insert.sessionId != prepared.origin.sessionId) {
-        unawaited(prepared.discard());
-        _composerToast(appL10n.phoneSkillReplaySourceChanged);
-        return;
-      }
-      setState(() {
-        _dropPreparedPhoneSkill();
-        _preparedPhoneSkill = prepared;
-      });
-      return;
-    }
     if (ref.read(currentSessionProvider) != insert.sessionId) {
       ref.read(currentSessionProvider.notifier).select(insert.sessionId);
     }
@@ -533,7 +449,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   @override
   void dispose() {
     _toTop?.dispose();
-    _dropPreparedPhoneSkill();
     WidgetsBinding.instance.removeObserver(this);
     _endInteraction?.call();
     _endInteraction = null;
@@ -789,8 +704,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
       ok = await chat.answer(request, [QuestionAnswer(request.questions.single.id, custom: text)]);
     } else {
       ok = await chat.send(text, attachments: drafts, mode: mode);
-      // A generation request, counted on top of its turn.
-      if (ok && generate != null && mounted) ref.read(usageStatsProvider.notifier).count(UsageCount.gen);
     }
     if (!ok && _sameHost(client)) _giveBack(sessionId, typed, drafts, quote: quote);
   }
@@ -1606,43 +1519,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final connAsync = ref.watch(activeConnectionProvider);
     final conn = connAsync.value;
     final connected = conn != null;
-    final local = ref.watch(activeHostProvider.select((h) => h.kind == HostKind.local));
-    final starting = local && ref.watch(localRuntimeProvider.select((s) => s.status.phase == RuntimePhase.starting));
-    final tidying = starting && ref.watch(localRuntimeProvider.select((s) => s.status.tidyingFiles));
-    // The engine stopped on its own: the failure card above the empty state
-    // carries the recovery, so the empty state offers no second one.
-    final failureCard = local && ref.watch(localRuntimeProvider.select((s) => EngineFailureCard.visibleFor(s.status)));
-    // 本机 down for good: no runtime (notInstalled), or stopped with auto
-    // start off (installed). Null otherwise.
-    final localIdle = local && !failureCard
-        ? ref.watch(
-            localRuntimeProvider.select(
-              (s) => s.status.runtimeMissing
-                  ? RuntimePhase.notInstalled
-                  : s.status.phase == RuntimePhase.installed
-                  ? RuntimePhase.installed
-                  : null,
-            ),
-          )
-        : null;
-    final idle = switch (localIdle) {
-      RuntimePhase.notInstalled => switch (localMissingCopy(
-        l10n,
-        available: ref.watch(localRuntimeProvider.select((s) => s.available)),
-      )) {
-        final copy => ChatIdleAction(
-          message: copy.title,
-          label: copy.action,
-          onTap: () => unawaited(openLocalInstall(context)),
-        ),
-      },
-      RuntimePhase.installed => ChatIdleAction(
-        message: l10n.shellEngineNotRunning,
-        label: l10n.shellStartEngine,
-        onTap: () => unawaited(EngineControl.ensureStarted(ProviderScope.containerOf(context, listen: false))),
-      ),
-      _ => null,
-    };
+    // 本机引擎已随拆分线删除，空态只服务远程主机。
+    final idle = null;
     // A conversation open with nothing loaded while 本机 is down (a cold
     // start back into the last one, auto start off): the empty page with its
     // one fix rather than a blank list.
@@ -1691,9 +1569,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         : ref.watch(sessionUsageProvider(sessionId).select((u) => u.contextFraction));
     // 「帮我修复」: a fresh chat with the repair prompt in the composer,
     // not sent — the person reads it first.
-    ref.listen(repairDraftProvider, (_, next) {
-      if (next != null) _takeRepairDraft();
-    });
     ref.listen(composerInsertProvider, (_, next) {
       if (next != null) _takeComposerInsert();
     });
@@ -1727,13 +1602,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     final question = chat?.question;
     final status = _status(
       connecting: connAsync.isLoading && conn == null,
-      starting: starting,
       connected: connected,
-      idleLabel: switch (localIdle) {
-        RuntimePhase.notInstalled => l10n.phoneEngineNotInstalled,
-        RuntimePhase.installed => l10n.commonStopped,
-        _ => null,
-      },
+      idleLabel: null,
       streamLost: chat?.streamLost ?? false,
       syncing: chat?.syncing ?? false,
       label: conn?.label ?? l10n.commonThisPhone,
@@ -1851,20 +1721,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    // The on-device engine stopped on its
-                                    // own (a remote host has its own errors).
-                                    if (failureCard)
-                                      const EngineFailureCard(padding: EdgeInsets.fromLTRB(16, 0, 16, 20)),
+                                    // 本机引擎已随拆分线删除，远端主机的报错由远端自己处理。
                                     ChatEmptyState(
                                       connected: connected,
                                       suggestions: ref.watch(settingsProvider.select((s) => s.chatSuggestions))
                                           ? defaultSuggestions
                                           : const [],
                                       connecting: connAsync.isLoading,
-                                      starting: starting,
-                                      tidying: tidying,
                                       idle: idle,
-                                      onReconnect: connAsync.hasError && !connAsync.isLoading && !failureCard
+                                      onReconnect: connAsync.hasError && !connAsync.isLoading
                                           ? _reconnect
                                           : null,
                                       onSuggestion: _onSuggestion,
@@ -2124,11 +1989,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                                         : const SizedBox(width: double.infinity),
                                   ),
                                 ),
-                                // Safe mode / trial banner; draws nothing otherwise.
-                                const PetPerch(
-                                  kind: PerchKind.banner,
-                                  child: SafeModeBanner(padding: EdgeInsets.only(bottom: 8)),
-                                ),
+                                // Safe mode 已随本地引擎删除，不再展示其横幅。
                                 if (connected && sessionId != null)
                                   PetPerch(
                                     kind: PerchKind.banner,
@@ -2193,36 +2054,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                                       visible: !running,
                                       leading: pillsInCapsules ? composerPills : null,
                                       strip: false,
-                                    ),
-                                  ),
-                                if (_preparedPhoneSkill case final prepared?)
-                                  Card(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(12),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(l10n.phoneSkillReplayReview),
-                                          SelectableText(prepared.text),
-                                          Row(
-                                            children: [
-                                              TextButton(
-                                                onPressed: _phoneSkillSending
-                                                    ? null
-                                                    : () => setState(_dropPreparedPhoneSkill),
-                                                child: Text(l10n.commonClose),
-                                              ),
-                                              FilledButton(
-                                                onPressed: _phoneSkillSending || readOnly || !connected
-                                                    ? null
-                                                    : _sendPhoneSkill,
-                                                child: Text(l10n.phoneSkillReplayQueue),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
                                     ),
                                   ),
                                 if (readOnly)
@@ -2387,7 +2218,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
   static HeaderStatus _status({
     required bool connecting,
-    required bool starting,
     required bool connected,
     String? idleLabel,
     required bool streamLost,
@@ -2400,7 +2230,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
     String? spoken,
   }) {
     if (!connected) {
-      if (starting) return HeaderStatus(StatusTone.busy, appL10n.chatStarting);
       return connecting
           ? HeaderStatus(StatusTone.busy, appL10n.chatConnecting)
           : HeaderStatus(StatusTone.idle, idleLabel ?? appL10n.commonNotConnected);

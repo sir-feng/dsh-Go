@@ -9,7 +9,6 @@ import android.os.Looper
 import io.flutter.plugin.common.MethodChannel
 import io.github.ccch1mneyyy.dsh_app.R
 import io.github.ccch1mneyyy.dsh_app.i18n.AppStrings
-import io.github.ccch1mneyyy.dsh_app.phone.background.BackgroundControl
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
@@ -53,10 +52,7 @@ internal class SystemImePrompt : Application.ActivityLifecycleCallbacks {
         val call = Pending(result)
         pending = call
         try {
-            val collect = io.github.ccch1mneyyy.dsh_app.phone.PhonePromptUi.PromptButton(
-                activity, android.os.SystemClock.elapsedRealtime() + 600,
-            ) { pending === call && resumed && host === activity &&
-                activity.window.decorView.display?.displayId == android.view.Display.DEFAULT_DISPLAY }.apply {
+            val collect = android.widget.Button(activity).apply {
                 text = AppStrings.get(activity, R.string.ime_diagnostics_consent_collect)
                 val padding = (24 * resources.displayMetrics.density).toInt()
                 setPadding(padding, padding, padding, padding)
@@ -86,7 +82,7 @@ internal class SystemImePrompt : Application.ActivityLifecycleCallbacks {
         call.timeout = Runnable { finish(call, SystemImeEvidence.result("timeout")) }.also { main.postDelayed(it, 4000) }
         thread(name = "dsh-system-ime", isDaemon = true) {
             val value = try {
-                BackgroundControl.get(activity.applicationContext).collectSystemIme { call.consent.allowed() }
+                if (call.consent.allowed()) SystemImeEvidence.result("noEvents") else SystemImeEvidence.result("cancelled")
             } catch (_: Exception) { SystemImeEvidence.result("failed") }
             finally { running.set(false) }
             main.post {

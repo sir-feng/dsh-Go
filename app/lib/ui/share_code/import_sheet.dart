@@ -16,7 +16,6 @@ import '../../share_code/share_codec.dart';
 import '../../share_code/share_import.dart';
 import '../../share_code/share_models.dart';
 import '../../share_code/share_net.dart';
-import '../../state/engine_control.dart';
 import '../common/app_sheet.dart';
 import '../common/list_page_row.dart';
 import '../common/scroll_edge_fade.dart';
@@ -135,10 +134,7 @@ class _ShareImportSheetState extends ConsumerState<ShareImportSheet> {
   Future<void> _restart() async {
     if (_restarting) return;
     setState(() => _restarting = true);
-    final container = ProviderScope.containerOf(context, listen: false);
-    final navigator = Navigator.of(context);
-    unawaited(EngineControl.restart(container));
-    navigator.pop();
+    Navigator.of(context).pop();
   }
 
   List<ImportTarget> get _targets => ref.read(importTargetsProvider);

@@ -343,7 +343,7 @@ class AccountTile extends ConsumerWidget {
         leading = const _TileIcon();
         value = Text(l10n.engineAccountSignedOut, style: TextStyle(color: colors.textTertiary));
       case AccountPhase.unknown:
-        // Engine not connected yet: don't claim either way.
+        // Remote host not connected yet: don't claim either way.
         title = l10n.engineAccountDeepSeek;
         subtitle = l10n.engineAccountNoKeyNeeded;
         leading = const _TileIcon();

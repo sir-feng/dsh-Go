@@ -15,7 +15,6 @@ import '../../../state/android_features.dart';
 import '../../../state/ask_ai.dart' show askAiAvailableProvider;
 import '../../../state/engine_settings_state.dart';
 import '../../../state/hosts_state.dart';
-import '../../../state/phone_state.dart';
 import '../../../state/plugin_config/plugin_config_state.dart';
 import '../../../state/plugins_state.dart';
 import '../../../state/sessions_state.dart';
@@ -69,7 +68,7 @@ String? unavailableReason(WidgetRef ref, SpotCondition? condition, L10n l10n) {
   final met = switch (condition) {
     null => true,
     SpotCondition.localHost => ref.watch(activeHostProvider).isLocal,
-    SpotCondition.phoneControlOn => ref.watch(phoneProvider.select((s) => !s.loaded || s.status.enabled)),
+    SpotCondition.phoneControlOn => false,
     SpotCondition.nativeUi => ref.watch(askAiAvailableProvider),
     SpotCondition.openChat => ref.watch(currentSessionProvider) != null,
     SpotCondition.workshopBuilt => ref.watch(workshopOriginProvider) != null,

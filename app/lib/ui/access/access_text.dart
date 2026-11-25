@@ -14,32 +14,26 @@ extension AccessFeatureText on AccessFeature {
   IconData get icon => switch (this) {
     AccessFeature.files => AppIcons.fileAccess,
     AccessFeature.pet => AppIcons.pet,
-    AccessFeature.phone => AppIcons.phoneControl,
     AccessFeature.background => AppIcons.keepAlive,
     AccessFeature.voice => AppIcons.voice,
     AccessFeature.alerts => AppIcons.notifications,
-    AccessFeature.systemActions => AppIcons.phoneControl,
   };
 
   String title(L10n l10n) => switch (this) {
     AccessFeature.files => l10n.accessFeatureFiles,
     AccessFeature.pet => l10n.accessFeaturePet,
-    AccessFeature.phone => l10n.accessFeaturePhone,
     AccessFeature.background => l10n.accessFeatureBackground,
     AccessFeature.voice => l10n.accessFeatureVoice,
     AccessFeature.alerts => l10n.accessFeatureAlerts,
-    AccessFeature.systemActions => l10n.systemActionsTitle,
   };
 
   /// What it needs, in one line.
   String needs(L10n l10n) => switch (this) {
     AccessFeature.files => l10n.accessFeatureFilesNeeds,
     AccessFeature.pet => l10n.accessFeaturePetNeeds,
-    AccessFeature.phone => l10n.accessFeaturePhoneNeeds,
     AccessFeature.background => l10n.accessFeatureBackgroundNeeds,
     AccessFeature.voice => l10n.accessFeatureVoiceNeeds,
     AccessFeature.alerts => l10n.accessFeatureAlertsNeeds,
-    AccessFeature.systemActions => l10n.catalogSystemActionsSummary,
   };
 }
 
@@ -51,7 +45,6 @@ extension AccessItemText on AccessItem {
     AccessItem.battery => AppIcons.keepAlive,
     AccessItem.vendorBackground => AppIcons.highPower,
     AccessItem.autostart => AppIcons.autostart,
-    AccessItem.accessibility => AppIcons.accessibility,
     AccessItem.popup => AppIcons.backgroundPopUp,
     AccessItem.overlay => AppIcons.overlayPermission,
   };
@@ -69,7 +62,6 @@ extension AccessItemText on AccessItem {
       _ => l10n.pluginsHuaweiBatterySetting,
     },
     AccessItem.autostart => l10n.accessAutostartTitle,
-    AccessItem.accessibility => l10n.accessA11yTitle,
     AccessItem.popup => l10n.accessPopupTitle,
     AccessItem.overlay => l10n.accessOverlayTitle,
   };
@@ -83,7 +75,6 @@ extension AccessItemText on AccessItem {
     AccessItem.battery => l10n.accessBatteryWhy,
     AccessItem.vendorBackground => l10n.accessVendorBackgroundWhy,
     AccessItem.autostart => l10n.accessAutostartWhy,
-    AccessItem.accessibility => l10n.accessA11yWhy,
     AccessItem.popup => l10n.accessPopupWhy,
     AccessItem.overlay => l10n.accessOverlayWhy,
   };

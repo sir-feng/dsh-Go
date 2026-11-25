@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import '../../l10n/l10n.dart';
 import '../theme/theme.dart';
-import 'setup_progress.dart';
 
 /// Where a first-run page sits in the flow; [OnboardingScaffold] draws it as a
 /// thin step bar in the top row. Provided by `OnboardingFlow`; absent when a
@@ -14,7 +13,6 @@ class OnboardingProgress extends InheritedWidget {
     required this.step,
     required this.steps,
     this.since,
-    this.runtime = false,
     this.onRemote,
     required super.child,
   });
@@ -27,10 +25,7 @@ class OnboardingProgress extends InheritedWidget {
   /// right then, not again when a step swaps its own inner pages.
   final DateTime? since;
 
-  /// The runtime unpacks beside this step (first run on this phone): the
-  /// scaffold keeps it in view with a [SetupProgressCapsule].
-  final bool runtime;
-
+  /// Remote navigation remains available to the flow.
   /// The way to a remote host when the unpack fails.
   final VoidCallback? onRemote;
 
@@ -39,10 +34,7 @@ class OnboardingProgress extends InheritedWidget {
 
   @override
   bool updateShouldNotify(OnboardingProgress oldWidget) =>
-      step != oldWidget.step ||
-      steps != oldWidget.steps ||
-      runtime != oldWidget.runtime ||
-      onRemote != oldWidget.onRemote;
+      step != oldWidget.step || steps != oldWidget.steps || onRemote != oldWidget.onRemote;
 }
 
 /// Shared frame for the first-run pages: backdrop, safe area, a 440dp reading column
@@ -55,7 +47,7 @@ class OnboardingProgress extends InheritedWidget {
 /// holds its capsule, centred; the row keeps its height whether the capsule
 /// shows or not, and steps aside for the keyboard.
 class OnboardingScaffold extends StatelessWidget {
-  const OnboardingScaffold({super.key, required this.children, this.leading, this.showRuntime = true});
+  const OnboardingScaffold({super.key, required this.children, this.leading});
 
   /// Laid out in a full-height column; use [Spacer]s to distribute space.
   final List<Widget> children;
@@ -63,17 +55,10 @@ class OnboardingScaffold extends StatelessWidget {
   /// Optional widget pinned at the top-left (the back button).
   final Widget? leading;
 
-  /// False on a page that shows the unpack itself (a big halo): no capsule.
-  final bool showRuntime;
-
-  /// Space under the capsule, above the bottom safe area.
-  static const capsuleBottom = 12.0;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final progress = OnboardingProgress.maybeOf(context);
-    final capsule = showRuntime && (progress?.runtime ?? false) && MediaQuery.viewInsetsOf(context).bottom == 0;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: dshSystemOverlay(theme.brightness),
       child: AppBackdrop(
@@ -123,12 +108,6 @@ class OnboardingScaffold extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (capsule)
-                      Padding(
-                        key: const ValueKey('setup-capsule-slot'),
-                        padding: const EdgeInsets.only(bottom: capsuleBottom),
-                        child: Center(child: SetupProgressCapsule(onRemote: progress!.onRemote)),
-                      ),
                   ],
                 ),
               ),

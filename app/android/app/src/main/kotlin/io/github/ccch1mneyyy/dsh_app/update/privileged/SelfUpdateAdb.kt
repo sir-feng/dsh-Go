@@ -2,7 +2,6 @@ package io.github.ccch1mneyyy.dsh_app.update.privileged
 
 import android.content.Context
 import android.os.Build
-import io.github.ccch1mneyyy.dsh_app.phone.background.AdbKeyStore
 import io.github.muntashirakon.adb.AdbStream
 import io.github.muntashirakon.adb.AbsAdbConnectionManager
 import io.github.muntashirakon.adb.android.AdbMdns
@@ -40,10 +39,10 @@ internal class SelfUpdateAdb private constructor(private val context: Context) :
                 try {
                     if (closed.get()) throw SelfUpdateException("transportLost")
                     val bytes = ByteArrayOutputStream()
-                    val input = stream.openInputStream()
+                    val input = stream.openInputStream().buffered()
                     while (true) {
                         val b = input.read()
-                        if (b < 0) break
+                        if (b < 0 || b == '\n'.code) break
                         if (bytes.size() >= 64 || b > 127) throw SelfUpdateException("identityChanged")
                         bytes.write(b)
                     }
@@ -70,7 +69,8 @@ internal class SelfUpdateAdb private constructor(private val context: Context) :
                 try {
                     if (closed.get()) throw SelfUpdateException("transportLost")
                     SelfUpdateStreams.exchange(prepared.snapshot.input(), prepared.snapshot.size, prepared.sha256,
-                        stream.openInputStream(), stream.openOutputStream(), close = { stream.close() })
+                        stream.openInputStream(), stream.openOutputStream(), endAtAdbResultLine = true,
+                        close = { stream.close() })
                 } finally { runCatching { stream.close() }; activeStream = null }
             }
         } catch (error: Exception) {

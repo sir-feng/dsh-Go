@@ -9,7 +9,6 @@ import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.github.ccch1mneyyy.dsh_app.voice.VoiceDiagnostics
-import io.github.ccch1mneyyy.dsh_app.runtime.RuntimeManifest
 import io.github.ccch1mneyyy.dsh_app.update.ApkInstaller
 import org.json.JSONObject
 import java.io.File
@@ -126,10 +125,7 @@ class DiagnosticsPlugin : FlutterPlugin, io.flutter.embedding.engine.plugins.act
         )
     }
 
-    private fun manifest(): Map<String, Any?> {
-        val json = runCatching { RuntimeManifest.load(context).raw }.getOrNull() ?: return emptyMap()
-        return manifestSummary(json)
-    }
+    private fun manifest(): Map<String, Any?> = emptyMap()
 
     private fun engineLog(maxBytes: Int): List<String> {
         val dir = File(context.filesDir, "runtime/logs")
@@ -146,25 +142,6 @@ class DiagnosticsPlugin : FlutterPlugin, io.flutter.embedding.engine.plugins.act
         private const val MB = 1024L * 1024L
         private const val DEFAULT_LOG_BYTES = 512 * 1024
         private const val MAX_LOG_BYTES = 4 * 1024 * 1024
-
-        /** The manifest fields a bug report needs; checksums, notes and launch details left out. */
-        fun manifestSummary(json: JSONObject): Map<String, Any?> {
-            fun str(key: String) = json.optString(key).ifEmpty { null }
-            fun long(key: String) = json.optLong(key, -1L).takeIf { it >= 0 }
-            val entries = json.optJSONObject("entries")
-            return mapOf(
-                "runtimeVersion" to str("runtimeVersion"),
-                "abi" to str("abi"),
-                "dshVersion" to str("dshVersion"),
-                "nodeVersion" to str("nodeVersion"),
-                "pnpmVersion" to str("pnpmVersion"),
-                "ubuntuVersion" to str("ubuntuVersion"),
-                "prootVersion" to str("prootVersion"),
-                "rootfsBytes" to long("rootfsBytes"),
-                "uncompressedBytes" to long("uncompressedBytes"),
-                "files" to entries?.optLong("file", -1L)?.takeIf { it >= 0 },
-            ).filterValues { it != null }
-        }
 
         /** The last whole lines of [file] within [maxBytes]; empty when it is missing. */
         fun tail(file: File, maxBytes: Int): List<String> {

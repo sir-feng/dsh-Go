@@ -34,7 +34,7 @@
   "commonSaveFailed": "Couldn’t save",
   "commonSaveFailedRetry": "Couldn’t save. Try again.",
   "commonFailedTryAgain": "Something went wrong. Try again.",
-  "commonEngineUnreachable": "Can’t reach the engine",
+  "commonEngineUnreachable": "Can’t reach the remote host",
   "commonStorageFull": "Not enough storage",
   "commonConnectionFailed": "Couldn’t connect",
   "commonCopyLink": "Copy link",

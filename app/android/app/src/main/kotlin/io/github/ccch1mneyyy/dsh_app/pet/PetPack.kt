@@ -1,6 +1,5 @@
 package io.github.ccch1mneyyy.dsh_app.pet
 
-import io.github.ccch1mneyyy.dsh_app.phone.Json
 import kotlin.math.roundToInt
 import kotlin.random.Random
 
@@ -219,7 +218,7 @@ class PetPack(
         )
 
         fun parse(text: String): PetPack {
-            val root = Json.parse(text) as? Map<*, *> ?: bad("not an object")
+            val root = PetJson.parse(text) as? Map<*, *> ?: bad("not an object")
             if (num(root["schema"])?.toInt() != 1) bad("schema must be 1")
             val id = (root["id"] as? String)?.takeIf { it.isNotBlank() } ?: bad("missing id")
             val scale = num(root["scale"])?.toInt()?.takeIf { it >= 1 } ?: bad("missing scale")

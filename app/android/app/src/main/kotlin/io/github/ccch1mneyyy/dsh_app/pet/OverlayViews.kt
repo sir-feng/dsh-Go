@@ -2,8 +2,6 @@ package io.github.ccch1mneyyy.dsh_app.pet
 
 import io.github.ccch1mneyyy.dsh_app.i18n.AppStrings
 import io.github.ccch1mneyyy.dsh_app.R
-import io.github.ccch1mneyyy.dsh_app.phone.PromptInputPolicy
-import io.github.ccch1mneyyy.dsh_app.phone.a11y.InjectGuard
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Configuration
@@ -304,9 +302,13 @@ internal class BubbleView(context: Context, onTap: () -> Unit) : LinearLayout(co
 }
 
 /**
- * A bubble's answer key, as careful as phone control's prompt ([PromptInputPolicy]): no touch before
- * [armedAt] (the bubble may pop up under a finger), none through another app's window, none while
- * this app is sending input itself ([PromptInputPolicy] says why that is the line).
+ * A bubble's answer key, as careful as phone control's prompt: no touch before
+ * [armedAt] (the bubble may pop up under a finger), none through another app's window, none
+ * while this app is sending input itself.
+ *
+ * [PromptInputPolicy.allows] and [InjectGuard.active] are inlined here: phone control (which
+ * owned both) is removed from this app, so `injecting` is never true and the live check is the
+ * same expression the policy used.
  */
 @SuppressLint("ViewConstructor")
 internal class GuardedButton(context: Context, private val armedAt: Long) : TextView(context) {
@@ -319,10 +321,8 @@ internal class GuardedButton(context: Context, private val armedAt: Long) : Text
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            rejected = !PromptInputPolicy.allows(
-                SystemClock.uptimeMillis(), armedAt, isEnabled, InjectGuard.active(),
-                event.flags and (MotionEvent.FLAG_WINDOW_IS_OBSCURED or 0x2) != 0,
-            )
+            rejected = !(isEnabled && SystemClock.uptimeMillis() >= armedAt &&
+                event.flags and (MotionEvent.FLAG_WINDOW_IS_OBSCURED or 0x2) == 0)
         }
         if (rejected) {
             if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) isPressed = false
@@ -332,13 +332,13 @@ internal class GuardedButton(context: Context, private val armedAt: Long) : Text
     }
 
     override fun performClick(): Boolean {
-        if (!isEnabled || SystemClock.uptimeMillis() < armedAt || InjectGuard.active()) return false
+        if (!isEnabled || SystemClock.uptimeMillis() < armedAt) return false
         return super.performClick()
     }
 
     override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean {
         if ((action == AccessibilityNodeInfo.ACTION_CLICK || action == AccessibilityNodeInfo.ACTION_LONG_CLICK) &&
-            (SystemClock.uptimeMillis() < armedAt || InjectGuard.active() || !a11y.isTouchExplorationEnabled)
+            (SystemClock.uptimeMillis() < armedAt || !a11y.isTouchExplorationEnabled)
         ) {
             return false
         }

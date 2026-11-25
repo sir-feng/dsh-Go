@@ -1,21 +1,12 @@
 import 'package:flutter/material.dart';
 
-import 'access_step.dart';
-import 'appearance_step.dart';
 import 'connect_page.dart';
-import 'onboarding_scaffold.dart';
-import 'runtime_setup_page.dart';
-import 'welcome_page.dart';
 
 /// First-run pages. [apiKey] is the "connect DeepSeek" step: account sign-in
 /// first, API key as the alternative.
 ///
-/// On this phone, first run sets up while the runtime unpacks
-/// (docs/design/onboarding-parallel-setup.md): [runtime] asks where DSH runs,
-/// [appearance], [access] (what DSH Go should do, and the permissions for it)
-/// and [apiKey] follow while it unpacks, and [finishing] waits for whatever
-/// is left of it. Upgrades, resets and a phone that only needs a key go
-/// [runtime] (the unpack itself) → [apiKey].
+/// 本地引擎已随拆分线删除，首启不再有本机/远程安装引导，
+/// [welcome]/[runtime]/[appearance]/[access]/[finishing] 这些步骤不再使用。
 enum OnboardingStep { welcome, runtime, appearance, access, apiKey, finishing }
 
 /// Moves between the first-run pages. The step itself is owned by the root
@@ -28,103 +19,34 @@ class OnboardingFlow extends StatefulWidget {
   const OnboardingFlow({
     super.key,
     required this.step,
-    required this.onWelcomeDone,
-    required this.onRuntimeDone,
     required this.onKeyDone,
-    this.chooseRuntime = false,
     this.onRemote,
-    this.onLocal,
-    this.onTavern,
-    this.onAppearanceDone,
-    this.onAccessDone,
-    this.onFinished,
-    this.beside = false,
   });
 
   final OnboardingStep step;
-  final VoidCallback onWelcomeDone;
-  final VoidCallback onRuntimeDone;
   final VoidCallback onKeyDone;
 
-  /// The runtime step asks first: this phone or a remote host
-  /// ([RuntimeSetupPage.choose]); false installs (resume, upgrade, reset).
-  final bool chooseRuntime;
-
-  /// Picked 「远程主机」 (or gave up on a failed install for one).
+  /// Picked 「远程主机」.
   final VoidCallback? onRemote;
-
-  /// Picked 「本机」: the caller starts the unpack and moves on to
-  /// [OnboardingStep.appearance]. Null: the runtime page installs itself.
-  final VoidCallback? onLocal;
-
-  /// Picked 和角色聊天: 酒馆, with nothing installed and no key asked for yet.
-  final VoidCallback? onTavern;
-
-  final VoidCallback? onAppearanceDone;
-
-  /// Past 想让 DSH Go 帮你做哪些事 (picked and walked, or skipped).
-  final VoidCallback? onAccessDone;
-
-  /// The unpack [OnboardingStep.finishing] waited for is done.
-  final VoidCallback? onFinished;
-
-  /// The steps run beside an unpack (first run on this phone).
-  final bool beside;
 
   @override
   State<OnboardingFlow> createState() => _OnboardingFlowState();
 }
 
 class _OnboardingFlowState extends State<OnboardingFlow> {
-  late DateTime _since = DateTime.now();
-
-  @override
-  void didUpdateWidget(OnboardingFlow oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.step != widget.step) _since = DateTime.now();
-  }
-
   @override
   Widget build(BuildContext context) {
     final step = widget.step;
+    // 本地引擎步骤已随拆分线删除，只剩 apiKey（连接 DeepSeek）。
     final Widget page = switch (step) {
-      OnboardingStep.welcome => WelcomePage(onStart: widget.onWelcomeDone),
-      OnboardingStep.runtime => RuntimeSetupPage(
-        onDone: widget.onRuntimeDone,
-        choose: widget.chooseRuntime,
-        onRemote: widget.onRemote,
-        onLocal: widget.onLocal,
-        onTavern: widget.onTavern,
-      ),
-      OnboardingStep.appearance => AppearanceStepPage(onDone: widget.onAppearanceDone ?? () {}),
-      OnboardingStep.access => AccessStepPage(onDone: widget.onAccessDone ?? () {}),
       OnboardingStep.apiKey => ConnectPage(onDone: widget.onKeyDone),
-      OnboardingStep.finishing => RuntimeSetupPage(
-        onDone: widget.onFinished ?? widget.onRuntimeDone,
-        waiting: true,
-        onRemote: widget.onRemote,
-      ),
+      _ => const SizedBox.shrink(),
     };
-    // The step bar counts the questions: where DSH runs, then (on this
-    // phone, first run) the look and what DSH Go should do, then the
-    // connection.
-    final steps = widget.chooseRuntime || widget.beside
-        ? const [OnboardingStep.runtime, OnboardingStep.appearance, OnboardingStep.access, OnboardingStep.apiKey]
-        : const [OnboardingStep.runtime, OnboardingStep.apiKey];
-    final index = steps.indexOf(step);
-    return OnboardingSwitcher(
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
       child: KeyedSubtree(
         key: ValueKey(step),
-        child: index < 0
-            ? page
-            : OnboardingProgress(
-                step: index + 1,
-                steps: steps.length,
-                since: _since,
-                runtime: widget.beside && step != OnboardingStep.runtime,
-                onRemote: widget.onRemote,
-                child: page,
-              ),
+        child: page,
       ),
     );
   }

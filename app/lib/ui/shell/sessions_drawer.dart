@@ -12,14 +12,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
-import '../../runtime/runtime_bridge.dart';
-import '../../runtime/runtime_state.dart';
-import '../../runtime/local_footprint.dart';
 import '../../state/bots_state.dart';
 import '../../state/connection_state.dart';
-import '../../state/engine_control.dart';
-import '../../state/hosts_state.dart';
 import '../../state/drawer_view_state.dart';
+import '../../state/hosts_state.dart';
 import '../../state/session_attention_state.dart';
 import '../../state/session_deletion_state.dart';
 import '../../state/sessions_state.dart';
@@ -33,13 +29,10 @@ import '../common/pressable.dart';
 import '../common/smooth_size.dart';
 import '../common/read_list_status.dart';
 import '../common/status_dot.dart';
-import '../onboarding/local_install.dart';
 import '../modes/mode_switch.dart';
 import '../remote/host_status.dart';
 import '../remote/host_switcher.dart' show showHostSheet;
 import '../remote/network_details_sheet.dart' show showRemoteNetworkDetails;
-import '../safe_mode/engine_failure_card.dart';
-import '../safe_mode/safe_mode_banner.dart';
 import '../share/share_entry.dart';
 import '../theme/app_icons.dart';
 import '../theme/theme.dart';
@@ -183,10 +176,6 @@ class SessionsDrawer extends ConsumerWidget {
                 ),
               ),
       ),
-      SafeModeBanner(
-        padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
-        onDetails: () => onOpen(DrawerDestination.engine),
-      ),
       SessionSearchBar(onClose: onClose),
       // The workspace switcher (once the host's workspace list has
       // arrived) and the list's options, then the status filters.
@@ -209,7 +198,7 @@ class SessionsDrawer extends ConsumerWidget {
       ),
     ];
     final list = _EdgeFade(
-      child: _SessionList(onClose: onClose, now: now),
+      child: _SessionList(onOpen: onOpen, onClose: onClose, now: now),
     );
 
     const radius = BorderRadius.only(topRight: Radius.circular(AppShape.xl), bottomRight: Radius.circular(AppShape.xl));
@@ -459,8 +448,9 @@ class _EdgeFade extends StatelessWidget {
 }
 
 class _SessionList extends ConsumerWidget {
-  const _SessionList({required this.onClose, this.now});
+  const _SessionList({required this.onOpen, required this.onClose, this.now});
 
+  final ValueChanged<DrawerDestination> onOpen;
   final VoidCallback onClose;
   final DateTime? now;
 
@@ -474,7 +464,7 @@ class _SessionList extends ConsumerWidget {
     // arrived (rather than flash every conversation).
     final scope = ref.watch(drawerScopeProvider);
     if (scope == null) {
-      if (ref.watch(readListLiveConnectionProvider) == null && !sessions.isLoading) return const _EmptyState();
+      if (ref.watch(readListLiveConnectionProvider) == null && !sessions.isLoading) return _EmptyState(onOpen: onOpen);
       if (sessions.hasError) {
         return _Centered(
           child: EmptyView(
@@ -494,7 +484,7 @@ class _SessionList extends ConsumerWidget {
     final showBots = scope.bots.isNotEmpty || (workspace == null && botReady);
     if (scope.sessions.isEmpty && !showBots && ref.watch(drawerViewProvider).folders.isEmpty) {
       if (scope.readOnly) return _Centered(child: Text(readListStatusText(scope.status)));
-      return workspace == null ? const _EmptyState() : const _WorkspaceEmptyState();
+      return workspace == null ? _EmptyState(onOpen: onOpen) : const _WorkspaceEmptyState();
     }
     return DrawerConversationList(
       now: now,
@@ -840,58 +830,24 @@ class _WorkspaceEmptyState extends ConsumerWidget {
 /// No sessions: either the engine (or remote host) isn't up yet, or there
 /// simply are none.
 class _EmptyState extends ConsumerWidget {
-  const _EmptyState();
+  const _EmptyState({required this.onOpen});
+
+  final ValueChanged<DrawerDestination> onOpen;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final host = ref.watch(activeHostProvider);
     if (!host.isLocal) return _RemoteEmptyState(host: host);
-    final status = ref.watch(localRuntimeProvider.select((s) => s.status));
-    if (EngineFailureCard.visibleFor(status)) {
-      return const SingleChildScrollView(padding: EdgeInsets.fromLTRB(10, 8, 10, 16), child: EngineFailureCard());
-    }
-    final view = switch (status.phase) {
-      RuntimePhase.running => EmptyView(
+    return _Centered(
+      child: EmptyView(
         compact: true,
-        icon: AppIcons.chat,
-        title: l10n.shellNoChatsYet,
-        message: l10n.shellNewChatsHint,
+        icon: AppIcons.remoteHosts,
+        title: l10n.commonRemoteHost,
+        actionLabel: l10n.remoteSwitchHost,
+        onAction: () => showHostSheet(context, onManage: () => onOpen(DrawerDestination.remote)),
       ),
-      RuntimePhase.starting => EmptyView(
-        compact: true,
-        icon: AppIcons.loading,
-        title: l10n.shellEngineStarting,
-        message: l10n.shellChatsAfterStarting,
-      ),
-      RuntimePhase.installed || RuntimePhase.error => EmptyView(
-        compact: true,
-        icon: AppIcons.power,
-        title: l10n.shellEngineNotRunning,
-        message: l10n.shellChatsAfterStarting,
-        actionLabel: l10n.shellStartEngine,
-        onAction: () => unawaited(EngineControl.ensureStarted(ProviderScope.containerOf(context))),
-      ),
-      RuntimePhase.notInstalled when status.runtimeMissing => switch (localMissingCopy(
-        l10n,
-        available: ref.watch(localRuntimeProvider.select((s) => s.available)),
-      )) {
-        final copy => EmptyView(
-          compact: true,
-          icon: AppIcons.thisPhone,
-          title: copy.title,
-          actionLabel: copy.action,
-          onAction: () => unawaited(openLocalInstall(context)),
-        ),
-      },
-      _ => EmptyView(
-        compact: true,
-        icon: AppIcons.power,
-        title: l10n.shellEngineNotRunning,
-        message: l10n.shellEngineStatusHint,
-      ),
-    };
-    return _Centered(child: view);
+    );
   }
 }
 
